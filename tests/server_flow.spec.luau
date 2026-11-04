@@ -18,7 +18,13 @@ local pA,pB=Profiles.loaded[alice],Profiles.loaded[bob]
 local plotA,plotB=plotFolder.Plot01,plotFolder.Plot02
 expect(plotA:GetAttribute("OwnerId")==123 and plotB:GetAttribute("OwnerId")==456,"Different players must reserve different vacant plots")
 expect(pA.cash==750 and pB.baseLevel==1,"First arrival needs a usable starter profile")
-local function desk(player,plot)player.Character:PivotTo(plot.Anchor.CFrame*CF.new(0,3,7))end
+local function desk(player,plot)
+	player.Character:PivotTo(plot.Anchor.CFrame*CF.new(0,3,7))
+	if plot:GetAttribute("OwnerId")==player.UserId then
+		local seat=plot.Building:FindFirstChild("AppraiserSeat",true)
+		seat.Occupant=player.Character:FindFirstChildOfClass("Humanoid");seat:GetPropertyChangedSignal("Occupant"):Fire()
+	end
+end
 desk(alice,plotA);desk(bob,plotB)
 local function action(player,name,packet)clock+=1;remote.OnServerEvent:Fire(player,name,packet or {})end
 local function latest(player,kind)
@@ -90,6 +96,8 @@ action(alice,"UpgradeTool",{tool="uv"})
 expect(pA.equipment.uv==1,"Purchased equipment must become usable")
 action(alice,"Specialty",{spec="Archaeologist"})
 expect(pA.specialty=="Archaeologist" and pA.specXP.Everyday>0,"Changing specialty must preserve the previous qualification")
+before=pA.cash;action(alice,"Specialty",{spec="Everyday"});action(alice,"Specialty",{spec="Archaeologist"})
+expect(pA.cash==before,"Changing learned professions must not charge the player again")
 action(alice,"Title",{id="collector"})
 expect(pA.title=="trainee","Locked title cosmetics must not be equippable by a forged request")
 action(alice,"Admin",{command="titles"});action(alice,"Title",{id="collector"})

@@ -25,6 +25,7 @@ MATERIAL = {"Plastic": 256, "SmoothPlastic": 272, "Neon": 288, "Wood": 512, "Woo
             "Cobblestone": 880, "Metal": 1088, "DiamondPlate": 1056, "Glass": 1568, "Fabric": 1312,
             "Grass": 1280, "Ground": 1360, "Asphalt": 1376}
 IDENTITY = ((1., 0., 0.), (0., 1., 0.), (0., 0., 1.))
+BASE_DIMENSIONS = ((56,22,14.5),(88,66,21),(108,84,39))
 
 
 def mm(a, b):
@@ -173,8 +174,9 @@ def rail(parent, a, b, height=3.6):
     part(parent, "SafetyGlass", size, (mid[0], mid[1]+height/2, mid[2]), "glass", "Glass", alpha=.58, collide=True)
 
 
-def cabinet(parent, pos, width=8, height=4, depth=3, drawers=3):
-    x, y, z = pos
+def cabinet(parent, pos, width=8, height=4, depth=3, drawers=3, yaw=0):
+    parent = group(parent, "Cabinet", pos, yaw)
+    x, y, z = (0, 0, 0)
     for dx in (-width/2+.3, width/2-.3): part(parent, "CabinetSide", (.6, height, depth), (x+dx, y+height/2, z), "wood", "WoodPlanks")
     part(parent, "CabinetBack", (width, height, .35), (x, y+height/2, z+depth/2), "wood", "Wood")
     part(parent, "CabinetTop", (width+.3, .35, depth+.3), (x, y+height, z), "oak", "Wood")
@@ -199,8 +201,8 @@ def desk(parent):
     m = group(parent, "AppraisalCounter")
     part(m, "SolidWalnutWorktop", (20, .65, 6.4), (0, 4.65, 4), "wood", "Wood")
     part(m, "BrassEdgeFront", (20.15, .13, .16), (0, 4.82, .77), "brass", "Metal", collide=False)
-    for x in (-6.7, 6.7): cabinet(m, (x, 1, 4), 5.3, 3.3, 4.9, 3)
-    part(m, "RecessedApron", (8, 1.2, .5), (0, 3.75, 6.6), "wood", "Wood")
+    for x in (-6.7, 6.7): cabinet(m, (x, 1, 4), 5.3, 3.3, 4.9, 3, yaw=180)
+    part(m, "RecessedApron", (8, 1.2, .5), (0, 3.75, 1.4), "wood", "Wood")
     for x in (-8.9, 8.9):
         for z in (1.8, 6.1): part(m, "CounterFoot", (.45, .55, .45), (x, 1.3, z), "iron", "Metal")
     part(m, "FeltExaminationPad", (5.4, .06, 3.9), (0, 5.01, 4), "mint", "Fabric", collide=False)
@@ -259,11 +261,11 @@ def equipment(parent, key, pos):
 def bookshelf(parent, pos, width=14, height=12):
     m = group(parent, "ArchiveShelf", pos)
     for x in (-width/2, width/2): part(m, "ShelfUpright", (.45, height, 3), (x, height/2, 0), "wood", "Wood")
-    for y in (0.4, 3.4, 6.4, 9.4, height): part(m, "ArchiveShelfBoard", (width, .35, 3), (0, y, 0), "wood", "WoodPlanks")
-    for row in range(4):
+    for y in [v for v in (.4,3.4,6.4,9.4) if v<height]+[height]: part(m, "ArchiveShelfBoard", (width, .35, 3), (0, y, 0), "wood", "WoodPlanks")
+    for row in range(int(height/3)):
         for i in range(int(width/1.05)-1):
             color = ("mint", "wood", "paper", "iron", "red")[(i+row*3) % 5]
-            h = 1.8+((i*3+row) % 4)*.16
+            h = min(1.8+((i*3+row) % 4)*.16,height-(.65+row*3)-.2)
             x = -width/2+1+i*1.04
             part(m, "ArchiveVolume", (.72, h, 2), (x, .65+row*3+h/2, -.3), color, "Fabric", collide=False)
             part(m, "SpineLabel", (.48, .4, .025), (x, 1.65+row*3, -1.32), "paper", collide=False)
@@ -292,10 +294,88 @@ def window_panel(parent, x, y, z, width, height, side=False):
     part(m, "StoneSill", (width+.9, .36, .9), (0, -height/2-.35, .04), "concrete", "Concrete", collide=False)
 
 
+def container_building(parent):
+    """Two joined high-cube modules: recognizable ISO proportions, cargo hardware and operator-side furniture."""
+    b=group(parent,"Level1" if parent.name=="Buildings" else "Building");anchor(b)
+    s=group(b,"Structure");w,d,h=BASE_DIMENSIONS[0]
+    part(s,"ContinuousFoundation",(60,1.1,27),(0,.15,0),"concrete","Concrete")
+    part(s,"GroundFloor",(56,.5,22),(0,.75,0),"oak","WoodPlanks")
+    part(s,"ThresholdStep",(12,.45,2),(0,.225,-14),"concrete","Concrete")
+    part(s,"ThresholdLanding",(12,.85,2.1),(0,.425,-12),"concrete","Concrete")
+    for x in (-27.65,27.65):part(s,"EndWall",(.7,13,22),(x,7.5,0),"mint","Metal")
+    part(s,"BackWall",(56,13,.7),(0,7.5,10.65),"mint","Metal")
+    for side in (-1,1):
+        part(s,"FrontOuterPost",(4,13,.7),(side*26,7.5,-10.65),"mint","Metal")
+        part(s,"FrontInnerPost",(1.8,13,.7),(side*5.1,7.5,-10.65),"mint","Metal")
+        part(s,"WindowApron",(18,3,.7),(side*15,2.5,-10.65),"mint","Metal")
+        window_panel(s,side*15,7.6,-10.58,18,7.2)
+    part(s,"WeldedEntranceHeader",(56,3.4,.8),(0,12.3,-10.65),"mint","Metal")
+    part(s,"RoofSlab",(56.8,.6,22.6),(0,14.2,0),"mint","Metal")
+    for z in (-11,0,11):
+        part(s,"LongitudinalFrame",(56.8,.5,.55),(0,13.85,z),"iron","Metal")
+        part(s,"BottomFrame",(56.8,.7,.65),(0,.8,z),"iron","Metal")
+    for x in (-27.5,27.5):
+        for z in (-10.6,0,10.6):
+            part(s,"CornerPost",(.65,13.6,.65),(x,7.2,z),"iron","Metal")
+            for y in (1,13.8):
+                part(s,"ISOCornerCasting",(1.1,.8,1.1),(x,y,z),"stone","Metal")
+                part(s,"TwistlockSocket",(.55,.22,.04),(x,y,z-.57),"iron","Metal",collide=False)
+    for x in range(-26,27,2):
+        part(s,"RoofCorrugation",(.22,.16,21.5),(x,14.56,0),"mint","Metal",collide=False)
+        part(s,"BackCorrugation",(.4,11.2,.18),(x,7.3,11.04),"mint","Metal",collide=False)
+    for z in range(-10,11,2):
+        part(s,"EndCorrugation",(.16,11.4,.4),(-28.06,7.2,z),"mint","Metal",collide=False)
+    cargo=group(b,"CargoDoors")
+    for z in (-8.25,-2.75,2.75,8.25):
+        part(cargo,"OriginalCargoDoor",(.14,11.5,5.3),(28.08,7.1,z),"mint","Metal",collide=False)
+        for dz in (-1.4,1.4):
+            beam(cargo,"LockingRod",(28.46,2.3,z+dz),(28.46,12,z+dz),.12,"silver")
+            for y in (3,7,11):part(cargo,"LockRodBracket",(.32,.28,.4),(28.43,y,z+dz),"iron","Metal",collide=False)
+            beam(cargo,"LockingHandle",(28.5,6,z+dz),(28.5,6,z+dz+.85),.12,"silver")
+        for y in (3.1,7,11.1):part(cargo,"CargoHinge",(.35,.4,.8),(28.3,y,z+2.3),"iron","Metal",collide=False)
+    sign(b,"PROBA 040\nHIGH CUBE\nMAX GROSS 30 480 kg",(-23,6,11.08),(7,3,.05),"cream","mint",face=2)
+    door=group(b,"DoorAssembly")
+    part(door,"Rail",(24,.55,.75),(0,11.6,-11.65),"iron","Metal",collide=False)
+    for x in (-10,0,10):part(door,"RailBracket",(.5,.6,1.3),(x,11.7,-11),"iron","Metal",collide=False)
+    for side,label in ((-1,"Left"),(1,"Right")):
+        part(door,label,(4.15,10,.3),(side*2.1,6,-11.3),"glass","Glass",alpha=.58)
+    part(door,"Sensor",(.4,.4,.4),(0,5,-12),alpha=1,collide=False)
+    for x in (-4.4,4.4):part(b,"CutoutSteelJamb",(.4,10.5,.7),(x,6.2,-11.1),"brass","Metal")
+    part(b,"SmallEntranceHood",(16,.25,3.5),(0,12,-12.6),"mint","Metal")
+    for x in (-7,7):beam(b,"HoodBracket",(x,10.6,-11),(x,11.85,-14),.18,"iron")
+    sign(b,"P R O B A",(0,13,-14.4),(15,1.7,.16),"cream","ink")
+    sign(b,"БЮРО / 00",(-22,9,-11.1),(6,1.4,.08),"brass","ink",label_name="PlotNumber")
+    sign(b,"СВОБОДНОЕ БЮРО",(0,11.65,-14.55),(15,.8,.06),"cream","ink",label_name="OwnerName")
+    desk(b)
+    equipment(b,"loupe",(-6.5,5,4));equipment(b,"scale",(6,5,4))
+    for x,key,yaw in ((-21,"uv",-90),(21,"diagnostic",90)):
+        cabinet(b,(x,1,5),9,4,6.8,3,yaw=yaw);equipment(b,key,(x,5.4,5))
+    cabinet(b,(-11.5,1,8.8),10,4,3,3);equipment(b,"spectro",(-11.5,5.4,8.8))
+    bookshelf(b,(12,1,9.2),11,7.5)
+    chair=group(b,"AppraiserChair",(0,1,8.2))
+    seat=part(chair,"AppraiserSeat",(3.8,.55,3.5),(0,2.6,0),"mint","Fabric",cls="Seat")
+    seat.set("CanTouch","bool",True).set("Disabled","bool",False)
+    for x in (-1.45,1.45):
+        for z in (-1.3,1.3):beam(chair,"ChairLeg",(x,0,z),(x,2.4,z),.22,"wood","Wood",True)
+        beam(chair,"BackStile",(x,2.4,1.5),(x,5.3,1.5),.22,"wood","Wood",True)
+    part(chair,"BackPad",(3.3,2.1,.45),(0,4.3,1.5),"mint","Fabric")
+    for x in (-21,21):display_case(b,(x,1,-5),11)
+    for x,z in ((-8,-5),(-14,-5),(8,-5),(14,-5)):cylinder(b,"QueueInlay",.65,.025,(x,1.025,z),"brass")
+    for x in (-17,0,17):lamp(b,(x,12.2,0))
+    for x in (-26.5,26.5):part(b,"ElectricalConduit",(.16,.18,18),(x,12.7,0),"iron","Metal",collide=False)
+    part(b,"FuseBox",(2,2.7,.6),(-25.5,5,10),"iron","Metal")
+    part(b,"VentilationUnit",(5,3,2.5),(22,3,12.5),"ivory","Metal")
+    for i in range(7):part(b,"VentFin",(4.3,.12,.08),(22,2.1+i*.3,13.8),"iron","Metal",collide=False)
+    registry=sign(b,"МАСТЕРСКАЯ",(23,10,10.1),(7,1.6,.12),"cream","ink")
+    prompt(registry,"RegistryPrompt","Развитие бюро","Оборудование и декор",15)
+    return b
+
+
 def building(parent, level):
+    if level==1:return container_building(parent)
     b = group(parent, "Level"+str(level) if parent.name == "Buildings" else "Building")
     anchor(b)
-    width, depth, height = {1:(68,46,18), 2:(88,66,21), 3:(108,84,39)}[level]
+    width, depth, height = BASE_DIMENSIONS[level-1]
     shell = group(b, "Structure")
     part(shell, "ContinuousFoundation", (width+8, 1.4, depth+8), (0, -.05, 0), "concrete", "Concrete")
     part(shell, "GroundFloor", (width, .5, depth), (0, .75, 0), "cream", "Concrete")
@@ -363,7 +443,7 @@ def building(parent, level):
     canopy_y=15.7
     part(b,"EntranceCanopy",(34,.55,7),(0,canopy_y,front-3),"mint","Metal")
     for x in (-15,15): beam(b,"CanopyBrace",(x,12.5,front+.1),(x,canopy_y-.3,front-5.3),.28)
-    sign(b,"П Р О Б А",(0,17.7,front-6.5),(27,3.4,.35),"cream","ink",font=19)
+    sign(b,"P R O B A",(0,17.7,front-6.5),(27,3.4,.35),"cream","ink",font=19)
     sign(b,"БЮРО / 00",(-width/2+8,6.5,front-.15),(9,2,.2),"brass","ink",label_name="PlotNumber")
     sign(b,"СВОБОДНОЕ БЮРО",(0,14.4,front-6.73),(25,1,.08),"cream","ink",label_name="OwnerName")
     # Electrical trunking goes to the workbench and the overhead fixtures.
@@ -381,16 +461,17 @@ def building(parent, level):
     desk(b)
     equipment(b,"loupe",(-6.5,5,4))
     equipment(b,"scale",(6,5,4))
-    cabinet(b,(-width/2+7,1,10),10,4,5,3)
+    cabinet(b,(-width/2+7,1,10),10,4,7,3,yaw=-90)
     equipment(b,"uv",(-width/2+7,5.4,10))
-    cabinet(b,(width/2-7,1,10),10,4,5,3)
+    cabinet(b,(width/2-7,1,10),10,4,7,3,yaw=90)
     equipment(b,"diagnostic",(width/2-7,5.4,10))
     cabinet(b,(-12,1,depth/2-4),12,4,5,4)
     equipment(b,"spectro",(-12,5.4,depth/2-4))
     bookshelf(b,(width/2-11,1,depth/2-3.5),15,12)
     # A formed chair with cross-braced legs and a padded back.
-    chair=group(b,"AppraiserChair",(0,1,13),180)
-    part(chair,"Seat",(4,.6,4),(0,2.6,0),"mint","Fabric")
+    chair=group(b,"AppraiserChair",(0,1,11),0)
+    seat=part(chair,"AppraiserSeat",(4,.6,4),(0,2.6,0),"mint","Fabric",cls="Seat")
+    seat.set("CanTouch","bool",True).set("Disabled","bool",False)
     for x in (-1.5,1.5):
         for z in (-1.5,1.5): beam(chair,"ChairLeg",(x,0,z),(x,2.4,z),.25,"wood","Wood",True)
         beam(chair,"BackStile",(x,2.5,1.65),(x,6,1.65),.28,"wood","Wood",True)
@@ -447,8 +528,8 @@ def building(parent, level):
         bench(upper,(-32,20.6,12),12)
     # Outside bench, numbered queue pads and a clear owner arrival spot.
     bench(b,(23,0,-depth/2-9),13)
-    for i in range(4):
-        cylinder(b,"QueueInlay",.8,.035,(-18,.04,-48-i*6),"brass")
+    for x,z in ((-8,-5),(-14,-5),(8,-5),(14,-5)):
+        cylinder(b,"QueueInlay",.65,.025,(x,1.025,z),"brass")
     part(b,"Doormat",(12,.06,5),(0,1.06,front+4),"ink","Fabric",collide=False)
     sign_x=width/2-11
     sign(b,"ОЦЕНКА  •  ВЫКУП  •  ЭКСПЕРТИЗА",(sign_x,3.2,front-17),(15,2,.2),"cream","mint")
@@ -842,7 +923,8 @@ def town(parent):
         part(t,"GateLintel",(139,4,5),(0,29,z),"ink","Metal")
         sign(t,"КВАРТАЛ ОЦЕНЩИКОВ" if z<0 else "РЫНОК НАХОДОК",(0,29,z-2.7),(95,3,.3),"cream","ink")
     # A dry, sealed ornamental basin; all water is a shallow noncolliding visual surface over solid stone.
-    f=group(t,"RegistryFountain",(0,.2,0));cylinder(f,"ClosedBasin",21,1.3,(0,.65,0),"stone","Concrete",True)
+    part(t,"PedestrianCourtyard",(82,.35,90),(-230,.12,20),"concrete","Concrete")
+    f=group(t,"RegistryFountain",(-230,.2,20));cylinder(f,"ClosedBasin",21,1.3,(0,.65,0),"stone","Concrete",True)
     ring(f,"BasinRim",(0,1.5,0),20,.7,"cream",48)
     cylinder(f,"ShallowWater",19.3,.08,(0,1.35,0),"blue","Glass",alpha=.38)
     cylinder(f,"CentralPlinth",5,2.4,(0,1.8,0),"cream","Concrete",True)
@@ -852,8 +934,8 @@ def town(parent):
     for x in (-11,11):
         for dz in (-2,2):beam(f,"SuspensionRod",(x,14,0),(x,8.5,dz),.12,"brass")
         cylinder(f,"BalancePan",3,.25,(x,8.3,0),"brass")
-    for x in (-31,31):
-        for z in (-23,23):bench(t,(x,.2,z),12)
+    for x in (-260,-200):
+        for z in (-7,47):bench(t,(x,.3,z),12)
     guide=sign(t,"ПРОБА\nБЮРО ОЦЕНКИ\nНачни свою историю",(-30,6,-290),(17,9,.6),"cream","ink")
     for x in (-37,-23):beam(t,"GuidePost",(x,.3,-290),(x,10.6,-290),.35,"iron")
     prompt(guide,"GuidePrompt","Как работать оценщиком","Путеводитель",19)
@@ -892,7 +974,8 @@ def town(parent):
     sign(tram,"ПРОБА / ГОРОДСКОЙ МАРШРУТ",(-11.5,5.6,-7.13),(20,1.5,.15),"cream","mint")
     # Parks and utility infrastructure finish the lots at a playable scale.
     for side in (-1,1):
-        for z in range(-320,321,80):tree(t,side*235,z,(z//11)%5)
+        for z in range(-320,321,80):
+            if not (side==-1 and z==0):tree(t,side*235,z,(z//11)%5)
         for z in (-160,0,160):
             for x in (side*211,side*251):bench(t,(x,.1,z-65),14)
             part(t,"ParkWalkway",(77,.2,12),(side*225,.1,z-65),"stone","Cobblestone")
@@ -994,14 +1077,14 @@ def main():
     ET.SubElement(xml,"External").text="null";ET.SubElement(xml,"External").text="nil"
     for service in root.children:serialize(service,xml)
     ET.ElementTree(xml).write(OUT/"PROBA.rbxlx",encoding="utf-8",xml_declaration=True)
-    allnodes=list(root.walk());parts=[n for n in allnodes if n.cls in ("Part","WedgePart","SpawnLocation")]
-    world_parts=[n for n in workspace.walk() if n.cls in ("Part","WedgePart","SpawnLocation")]
-    stats={"name":"ПРОБА · Бюро оценки","catalogue":len(definitions),"unique_model_kinds":len({d['kind'] for d in definitions}),
+    allnodes=list(root.walk());parts=[n for n in allnodes if n.cls in ("Part","WedgePart","SpawnLocation","Seat")]
+    world_parts=[n for n in workspace.walk() if n.cls in ("Part","WedgePart","SpawnLocation","Seat")]
+    stats={"name":"PROBA · Appraisal & Antiques","catalogue":len(definitions),"unique_model_kinds":len({d['kind'] for d in definitions}),
            "instances":len(allnodes)-1,"total_parts":len(parts),"world_parts":len(world_parts),
            "items":{m.name:sum(n.cls in ("Part","WedgePart") for n in m.walk()) for m in models},
            "base_levels":{str(i+1):{"width":dim[0],"depth":dim[1],"height":dim[2],"footprint":dim[0]*dim[1],
              "floors":1 if i<2 else 2,"gross_floor_area":dim[0]*dim[1] if i<2 else 108*84+108*17+108*18+38*47+32*12+20*47+6.5*47,
-             "parts":sum(n.cls in ("Part","WedgePart") for n in levels[i].walk())} for i,dim in enumerate(((68,46,18),(88,66,21),(108,84,39)))}}
+             "parts":sum(n.cls in ("Part","WedgePart","Seat") for n in levels[i].walk())} for i,dim in enumerate(BASE_DIMENSIONS)}}
     (OUT/"manifest.json").write_text(json.dumps(stats,ensure_ascii=False,indent=2)+"\n")
     scene=[]
     for n in world_parts:

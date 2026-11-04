@@ -1,0 +1,52 @@
+{
+  "profession_icons": {
+    "file": "icons/professions.png",
+    "size": [
+      2172,
+      724
+    ],
+    "rectangles": [
+      [
+        47,
+        172,
+        335,
+        392
+      ],
+      [
+        449,
+        200,
+        369,
+        361
+      ],
+      [
+        876,
+        173,
+        375,
+        398
+      ],
+      [
+        1303,
+        187,
+        385,
+        378
+      ],
+      [
+        1747,
+        185,
+        378,
+        372
+      ]
+    ],
+    "roblox_asset_id": 0,
+    "status": "generated; upload to Roblox required"
+  },
+  "antique_porcelain": {
+    "file": "textures/antique-porcelain.png",
+    "size": [
+      1254,
+      1254
+    ],
+    "roblox_asset_id": 0,
+    "status": "generated; upload to Roblox required"
+  }
+}

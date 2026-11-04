@@ -1,10 +1,10 @@
 {
-  "name": "ПРОБА · Бюро оценки",
+  "name": "PROBA · Appraisal & Antiques",
   "catalogue": 100,
   "unique_model_kinds": 91,
-  "instances": 11998,
-  "total_parts": 11312,
-  "world_parts": 5493,
+  "instances": 11417,
+  "total_parts": 10743,
+  "world_parts": 5003,
   "items": {
     "h01": 29,
     "h02": 8,
@@ -109,13 +109,13 @@
   },
   "base_levels": {
     "1": {
-      "width": 68,
-      "depth": 46,
-      "height": 18,
-      "footprint": 3128,
+      "width": 56,
+      "depth": 22,
+      "height": 14.5,
+      "footprint": 1232,
       "floors": 1,
-      "gross_floor_area": 3128,
-      "parts": 560
+      "gross_floor_area": 1232,
+      "parts": 481
     },
     "2": {
       "width": 88,

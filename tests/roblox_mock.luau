@@ -58,6 +58,9 @@ function methods:WaitForChild(name) return assert(self:FindFirstChild(name),"Moc
 function methods:FindFirstChildOfClass(cls) for _,c in ipairs(self.children) do if c.ClassName==cls then return c end end;return nil end
 function methods:SetAttribute(k,v) self.attributes[k]=v end
 function methods:GetAttribute(k) return self.attributes[k] end
+function methods:GetPropertyChangedSignal(k)
+	self.propertySignals=self.propertySignals or {};self.propertySignals[k]=self.propertySignals[k] or signal();return self.propertySignals[k]
+end
 function methods:Destroy() self.Parent=nil end
 function methods:Clone()
 	local n=node(self.ClassName,self.Name)
@@ -118,6 +121,7 @@ local buildings=node("Folder","Buildings",services.ServerStorage)
 for i=1,3 do
 	local b=node("Model","Level"..i,buildings);b.PrimaryPart=node("Part","Anchor",b)
 	local p=node("Part","Interaction",b);node("ProximityPrompt","AppraisalPrompt",p)
+	node("Seat","AppraiserSeat",b)
 	local reg=node("Part","Registry",b);node("ProximityPrompt","RegistryPrompt",reg)
 end
 local templates=node("Folder","Templates",services.ServerStorage);node("Model","BaconCustomer",templates)

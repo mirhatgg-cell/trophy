@@ -1,18 +1,22 @@
 local Config = {}
 
-Config.Name = "ПРОБА · Бюро оценки"
-Config.Version = "0.1.0"
+Config.Name = "PROBA · Appraisal & Antiques"
+Config.Version = "0.2.0"
+Config.ProfessionIconAtlas = 0 -- Upload assets/icons/professions.png and set its genuine Roblox image ID.
+Config.ProfessionIconCell = { width = 0, height = 0 } -- Filled from the generated atlas manifest.
+Config.ProfessionIconRects = {{47,172,335,392}, {449,200,369,361}, {876,173,375,398}, {1303,187,385,378}, {1747,185,378,372}} -- Optional exact source rectangles from assets/manifest.json.
+Config.QueueSlots = { {0,-1}, {-8,-5}, {-14,-5}, {8,-5}, {14,-5} }
 Config.StartingCash = 750
 Config.InventoryLimit = 40
 Config.PeerFee = 40
 Config.AdminUserIds = {} -- Studio testers and the individual experience owner are also admins.
 Config.SpecOrder = { "Everyday", "Jeweler", "Historian", "Archaeologist", "Technician" }
 Config.Specs = {
-	Everyday = { name = "Товаровед", subtitle = "Быт, инструменты, игрушки", color = { 126, 185, 154 } },
-	Jeweler = { name = "Ювелир", subtitle = "Металлы, камни, украшения", color = { 217, 179, 100 } },
-	Historian = { name = "Историк", subtitle = "Монеты, документы, наследие", color = { 180, 151, 197 } },
-	Archaeologist = { name = "Археолог", subtitle = "Древности, керамика, окаменелости", color = { 201, 145, 107 } },
-	Technician = { name = "Механик", subtitle = "Оптика, электроника, механизмы", color = { 119, 172, 200 } },
+	Everyday = { name = "Товаровед", symbol = "⚖", icon = 1, subtitle = "Быт, инструменты, игрушки", color = { 126, 185, 154 } },
+	Jeweler = { name = "Ювелир", symbol = "◇", icon = 2, subtitle = "Металлы, камни, украшения", color = { 217, 179, 100 } },
+	Historian = { name = "Историк", symbol = "▤", icon = 3, subtitle = "Монеты, документы, наследие", color = { 180, 151, 197 } },
+	Archaeologist = { name = "Археолог", symbol = "◉", icon = 4, subtitle = "Древности, керамика, окаменелости", color = { 201, 145, 107 } },
+	Technician = { name = "Механик", symbol = "⚙", icon = 5, subtitle = "Оптика, электроника, механизмы", color = { 119, 172, 200 } },
 }
 Config.ToolsOrder = { "loupe", "scale", "uv", "spectro", "diagnostic" }
 Config.Tools = {

@@ -23,6 +23,8 @@ local animatedBadges = {}
 local viewportModel, viewportCamera, viewportTarget, viewportSize
 local window, content, pageTitle, pageSubtitle, quoteBox, offerBox, scanLabel, scanBar, receipt
 local renderPanel, renderRoster, renderHUD
+local rosterVisible = false
+local rosterShell
 
 local gui = Instance.new("ScreenGui"); gui.Name = "ProbaInterface"; gui.ResetOnSpawn = false; gui.IgnoreGuiInset = false; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.DisplayOrder = 20; gui.Parent = player:WaitForChild("PlayerGui")
@@ -74,7 +76,7 @@ local brand = make("Frame", { BackgroundColor3 = C.deep, BackgroundTransparency 
 corner(brand, 12); stroke(brand, C.gold, 0.55)
 local seal = make("Frame", { BackgroundColor3 = C.ink, Position = UDim2.fromOffset(13, 13), Size = UDim2.fromOffset(50, 50) }, brand); corner(seal, 25); stroke(seal, C.gold, 0, 2)
 text(seal, "П", 36, C.gold, UDim2.fromOffset(0, -2), UDim2.fromOffset(50, 50), DISPLAY).TextXAlignment = Enum.TextXAlignment.Center
-text(brand, "П Р О Б А", 21, C.paper, UDim2.fromOffset(78, 9), UDim2.fromOffset(185, 30), BOLD)
+text(brand, "P R O B A", 21, C.paper, UDim2.fromOffset(78, 9), UDim2.fromOffset(185, 30), BOLD)
 text(brand, "Б Ю Р О   О Ц Е Н К И", 10, C.muted, UDim2.fromOffset(79, 40), UDim2.fromOffset(180, 18), FONT)
 line(brand, 79, 63, 156, C.gold)
 local wallet = make("Frame", { BackgroundColor3 = C.deep, BackgroundTransparency = 0.06, BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 16), Size = UDim2.fromOffset(268, 102) }, gui)
@@ -99,10 +101,13 @@ local dockItems = { {"01  Дело", "case"}, {"02  Коллекция", "invent
 for i, entry in ipairs(dockItems) do button(dock, entry[1], 10 + (i - 1) * 119, 10, 112, 44, function() emit("Open", { panel = entry[2] }) end) end
 local homeButton = button(gui, "⌂  К своему бюро", 0, 0, 175, 37, function() emit("Return") end)
 homeButton.AnchorPoint = Vector2.new(1, 1); homeButton.Position = UDim2.new(1, -18, 1, -96)
-local rosterButton = button(gui, "Оценщики  [TAB]", 0, 0, 175, 37, function() if activePanel == "roster" then window.Visible = false; activePanel = nil else activePanel = "roster"; renderPanel() end end)
+local rosterButton = button(gui, "Оценщики  [TAB]", 0, 0, 175, 37, function() rosterVisible = not rosterVisible; renderRoster() end)
 rosterButton.AnchorPoint = Vector2.new(1, 0); rosterButton.Position = UDim2.new(1, -18, 0, 131)
 local adminButton = button(gui, "Лаборатория  [F8]", 0, 0, 175, 32, function() activePanel = "admin"; renderPanel() end, "gold")
-adminButton.AnchorPoint = Vector2.new(1, 0); adminButton.Position = UDim2.new(1, -18, 0, 178); adminButton.Visible = false
+adminButton.AnchorPoint = Vector2.new(0, 1); adminButton.Position = UDim2.new(0, 18, 1, -96); adminButton.Visible = false
+rosterShell = make("Frame", {AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,-18,0,177),Size=UDim2.fromOffset(310,420),
+	BackgroundColor3=C.deep,BackgroundTransparency=0.07,BorderSizePixel=0,Visible=false},gui)
+corner(rosterShell,10);stroke(rosterShell,C.gold,0.55)
 
 local toastFrame = make("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 18), Size = UDim2.fromOffset(480, 250) }, gui)
 local toastLayout = make("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center }, toastFrame)
@@ -270,11 +275,11 @@ local function buildSpecialty()
 		text(row, def.name, 20, C.paper, UDim2.fromOffset(35, 7), UDim2.fromOffset(290, 30), DISPLAY)
 		text(row, def.subtitle, 11, C.muted, UDim2.fromOffset(35, 41), UDim2.fromOffset(420, 21))
 		text(row, "УР. " .. level .. " / 10   ·   " .. xp .. " XP", 12, C.gold, UDim2.fromOffset(470, 25), UDim2.fromOffset(210, 22), NUM)
-		button(row, if active then "Основная" elseif data.stats.served == 0 then "Выбрать бесплатно" else "Сменить · 200", 700, 15, 218, 42, function() emit("Specialty", { spec = specId }) end, if active then "gold" else nil)
+		button(row, if active then "Основная" else "Выбрать бесплатно", 700, 15, 218, 42, function() emit("Specialty", { spec = specId }) end, if active then "gold" else nil)
 	end
 	local level = Domain.specLevel(data.specXP[data.specialty])
-	button(content, if level < 10 then "Обучение до ур. " .. (level + 1) .. " · " .. money(level * 220) else "Квалификация максимальна", 0, 437, 402, 47, function() emit("Train") end, "primary")
-	text(content, "Практика тоже даёт опыт. При смене профессии опыт сохраняется. В чужой области даже хорошие приборы оставляют заметную неопределённость.", 12, C.muted, UDim2.fromOffset(423, 435), UDim2.fromOffset(506, 66))
+	text(content,if level<10 then "Следующий уровень: "..math.max(0,30*level*level-data.specXP[data.specialty]).." XP" else "Квалификация максимальна",19,C.gold,UDim2.fromOffset(0,437),UDim2.fromOffset(402,47),NUM)
+	text(content, "Уровни растут от оценок предметов соответствующей области. Смена профессии бесплатна; знания сохраняются. В чужой области приборы оставляют неопределённость.", 12, C.muted, UDim2.fromOffset(423, 435), UDim2.fromOffset(506, 66))
 end
 
 local function buildInventory()
@@ -357,15 +362,24 @@ local function buildTitles()
 end
 
 renderRoster = function()
-	heading("Оценщики квартала", "Рамки, фоны и титулы · TAB закрывает список · в прототипе шесть собственных бюро")
+	rosterShell.Visible=rosterVisible
+	if not rosterVisible then return end
+	for _,child in ipairs(rosterShell:GetChildren())do if child:IsA("GuiObject")then child:Destroy()end end
+	text(rosterShell,"PROBA / ОЦЕНЩИКИ",11,C.gold,UDim2.fromOffset(12,7),UDim2.fromOffset(285,22),BOLD)
+	rosterShell.Size=UDim2.fromOffset(310,35+math.min(#rows,6)*61)
 	for i, row in ipairs(rows) do
-		local y = (i - 1) * 82
-		local card = make("Frame", { BackgroundColor3 = C.panel, BorderSizePixel = 0, Position = UDim2.fromOffset(0, y), Size = UDim2.fromOffset(936, 73) }, content); corner(card, 9)
-		text(card, string.format("%02d", i), 25, C.gold, UDim2.fromOffset(17, 15), UDim2.fromOffset(43, 39), NUM)
-		text(card, row.name, 16, C.paper, UDim2.fromOffset(78, 8), UDim2.fromOffset(280, 27), BOLD)
-		text(card, "@" .. row.username .. " · " .. row.plot, 10, C.muted, UDim2.fromOffset(78, 39), UDim2.fromOffset(290, 21))
-		titleBadge(card, titleDefinition(row.title), 371, 18, 292, 37)
-		text(card, Config.Specs[row.specialty].name .. " " .. row.level .. "\nРепутация " .. row.reputation, 12, C.paper, UDim2.fromOffset(696, 13), UDim2.fromOffset(220, 49))
+		if i>6 then break end
+		local def=titleDefinition(row.title);local color=titleColors[def.style]
+		local card=make("Frame",{BackgroundColor3=C.panel,BackgroundTransparency=0.18,BorderSizePixel=0,
+			Position=UDim2.fromOffset(8,32+(i-1)*61),Size=UDim2.fromOffset(294,54)},rosterShell);corner(card,6)
+		text(card,Config.Specs[row.specialty].symbol,24,Color3.fromRGB(unpack(Config.Specs[row.specialty].color)),UDim2.fromOffset(7,6),UDim2.fromOffset(34,38))
+		local name=text(card,row.name,14,if row.title=="trainee" then C.paper else color,UDim2.fromOffset(47,3),UDim2.fromOffset(195,24),BOLD)
+		text(card,def.name,9,color,UDim2.fromOffset(47,29),UDim2.fromOffset(208,17),BOLD)
+		text(card,tostring(row.reputation),16,C.gold,UDim2.fromOffset(250,5),UDim2.fromOffset(37,24),NUM)
+		if def.style=="gold" or def.style=="violet" then
+			local sheen=make("UIGradient",{Color=ColorSequence.new(color,C.paper)},name)
+			table.insert(animatedBadges,{object=name,gradient=sheen,style="name"})
+		end
 	end
 end
 
@@ -474,7 +488,8 @@ State.OnClientEvent:Connect(function(packet)
 	elseif packet.kind == "open" then activePanel = packet.panel; renderPanel()
 	elseif packet.kind == "toast" then toast(packet.text, packet.tone)
 	elseif packet.kind == "catalog" then catalog = packet.items
-	elseif packet.kind == "roster" then rows = packet.rows; if activePanel == "roster" then renderPanel() end
+	elseif packet.kind == "roster" then rows = packet.rows; if rosterVisible then renderRoster() end
+	elseif packet.kind == "leaveDesk" then if activePanel=="case" or activePanel=="peer" then activePanel=nil;window.Visible=false end
 	elseif packet.kind == "receipt" or packet.kind == "report" then receiptCard(packet)
 	elseif packet.kind == "scan" then
 		scanUntil = os.clock() + packet.seconds
@@ -486,7 +501,7 @@ end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	if input.KeyCode == Enum.KeyCode.Tab then
-		if activePanel == "roster" then activePanel = nil; window.Visible = false else activePanel = "roster"; renderPanel() end
+		rosterVisible = not rosterVisible; renderRoster()
 	elseif input.KeyCode == Enum.KeyCode.F8 and data and data.admin then activePanel = "admin"; renderPanel()
 	elseif input.KeyCode == Enum.KeyCode.B then emit("Open", { panel = "case" })
 	elseif input.KeyCode == Enum.KeyCode.Escape and activePanel then activePanel = nil; window.Visible = false end
@@ -513,7 +528,7 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() resize();
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
 RunService.RenderStepped:Connect(function(dt)
 	for _,badge in ipairs(animatedBadges) do
-		if badge.object.Parent and window.Visible then
+		if badge.object.Parent and (window.Visible or rosterVisible) then
 			if badge.style=="gold" then badge.object.Rotation=(badge.object.Rotation+dt*9)%360 end
 			badge.gradient.Offset=Vector2.new(math.sin(os.clock()*.5)*.16,0)
 		end

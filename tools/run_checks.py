@@ -17,6 +17,7 @@ for path in sorted((ROOT/'src').rglob('*.luau')):
     run([args.compiler,str(path)],stdout=subprocess.DEVNULL)
 print('PASS Luau compilation',flush=True)
 run([args.luau,'tests/economy.spec.luau'])
+run([args.luau,'tests/visits.spec.luau'])
 bundle=(ROOT/'tests/roblox_mock.luau').read_text()+'\n'
 for path in sorted((ROOT/'src/Shared').glob('*.luau')):
     bundle+='register('+json.dumps(path.stem)+',function()\n'+path.read_text()+'\nend, shared)\n'

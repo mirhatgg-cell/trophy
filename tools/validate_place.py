@@ -29,7 +29,7 @@ def descendants(n,wanted=None):return [c for c in n.iter('Item') if c is not n a
 def position(n):return tuple(float(prop(n,'CFrame').find(k).text) for k in ('X','Y','Z'))
 def size(n):return tuple(float(prop(n,'size').find(k).text) for k in ('X','Y','Z'))
 def matrix(n):return tuple(tuple(float(prop(n,'CFrame').find(f'R{i}{j}').text) for j in range(3)) for i in range(3))
-def is_part(n):return n.get('class') in ('Part','WedgePart','SpawnLocation')
+def is_part(n):return n.get('class') in ('Part','WedgePart','SpawnLocation','Seat')
 def collides(n):return prop(n,'CanCollide') is not None and prop(n,'CanCollide').text=='true'
 
 for n in nodes:
@@ -106,11 +106,12 @@ def check_route(model,points,label):
                         require(not hit(box,x+dx,y,z+dz),f'{name(model)} blocked {label} at ({x:.2f},{z:.2f}) by {name(p)}')
 
 for base in children(buildings):
-    for marker in ('AppraisalPrompt','RegistryPrompt','Tool_loupe','Tool_scale','Tool_uv','Tool_spectro','Tool_diagnostic'):
+    for marker in ('AppraisalPrompt','AppraiserSeat','RegistryPrompt','Tool_loupe','Tool_scale','Tool_uv','Tool_spectro','Tool_diagnostic'):
         require(len(descendants(base,marker))==1,f'Missing or duplicated runtime marker: {name(base)} {marker}')
     check_route(base,[(46,-94),(0,-48),(0,-20),(0,-1)],'customer arrival')
-    check_route(base,[(46,-94),(-18,-72),(-18,-48)],'waiting queue')
-    check_route(base,[(-18,-48),(0,-48),(0,-20),(0,-1)],'queue promotion')
+    for slot in ((-8,-5),(-14,-5),(8,-5),(14,-5)):
+        check_route(base,[(46,-94),(0,-48),(0,-8.5),(slot[0],-8.5),slot],'indoor waiting queue')
+        check_route(base,[slot,(slot[0],-8.5),(0,-8.5),(0,-1)],'indoor queue promotion')
     doorway=child(base,'DoorAssembly')
     require({name(c) for c in children(doorway)}=={'Rail','RailBracket','Left','Right','Sensor'},'Door drive or leaves missing')
     floor=next(p for p in descendants(base,'GroundFloor'))
@@ -129,6 +130,9 @@ tops=sorted(position(p)[1]+size(p)[1]/2 for p in treads)
 require(abs(tops[-1]-20.6)<1e-6 and max(b-a for a,b in zip(tops,tops[1:]))<=.55,'Stair risers must meet the gallery and remain climbable')
 check_route(upper_base,[(14,10),(26,5),(33,-23),(42,-23),(42,-21)],'stair approach')
 require(prop(child(ws,'Camera'),'CameraType').text=='5','Player camera must remain Custom, not a saved fixed editor camera')
+fountain=next(n for n in descendants(ws) if name(n)=='RegistryFountain')
+basin=next(n for n in descendants(fountain) if name(n)=='ClosedBasin')
+require(abs(position(basin)[0])-size(basin)[1]/2>64,'Fountain must stand outside the roadway and sidewalk')
 
 api_path=Path(os.environ.get('ROBLOX_API_DUMP','/tmp/proba-api-dump.json'))
 if api_path.exists():

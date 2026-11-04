@@ -57,6 +57,7 @@ local function sanitize(raw, catalogById)
 				local clean = { uid = item.uid, id = item.id, seed = integer(item.seed, 1, 1, 2000000000),
 					condition = math.clamp(item.condition, 0.35, 1), demand = math.clamp(item.demand, 0.85, 1.2), genuine = item.genuine,
 					paid = integer(item.paid, 0, 0, 1000000000), reports = {} }
+				if type(item.story) == "string" and #item.story <= 1500 and utf8.len(item.story) then clean.story = item.story end
 				if type(item.reports) == "table" then
 					for _, report in ipairs(item.reports) do
 						if #clean.reports >= 3 then break end

@@ -34,6 +34,13 @@ end
 local function atDesk(player, session)
 	return session and session.plot and near(player, (session.plot.Anchor.CFrame * CFrame.new(0, 3, 7)).Position, 27)
 end
+local function working(player, session)
+	if not atDesk(player, session) then return false end
+	local building = session.plot:FindFirstChild("Building")
+	local seat = building and building:FindFirstChild("AppraiserSeat", true)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	return seat ~= nil and humanoid ~= nil and seat.Occupant == humanoid
+end
 local function availableCash(player)
 	local p = Profiles.loaded[player]
 	if not p then return 0 end
@@ -56,7 +63,7 @@ local function publicItem(player, item, tests)
 	local def = index[item.id]
 	local low, high, confidence = Domain.estimate(Profiles.loaded[player], def, item, tests or {})
 	return { id = item.id, uid = item.uid, name = def.name, spec = def.spec, material = def.material, era = def.era,
-		story = def.story, condition = conditionText(item.condition), estimate = { low = low, high = high, confidence = confidence },
+		story = item.story or def.story, condition = conditionText(item.condition), estimate = { low = low, high = high, confidence = confidence },
 		reports = item.reports or {}, paid = item.paid or 0 }
 end
 local function casePacket(player, record)
@@ -86,7 +93,7 @@ sendSnapshot = function(player)
 		baseLevel = p.baseLevel, specialty = p.specialty, specXP = p.specXP, equipment = p.equipment, stats = p.stats,
 		title = p.title, unlocked = Domain.unlockedTitles(p), seenCount = #p.seen, inventory = inv, heldUid = s.heldUid,
 		plot = if s.plot then s.plot.Name else nil, saveMode = s.saveMode, queue = if customerSession then #customerSession.queue else 0,
-		capacity = Config.BaseLevels[p.baseLevel].capacity, case = casePacket(player, Customers.Active(player)), pending = pending, peer = peer, admin = isAdmin(player) })
+		capacity = Config.BaseLevels[p.baseLevel].capacity, seated = working(player,s), case = casePacket(player, Customers.Active(player)), pending = pending, peer = peer, admin = isAdmin(player) })
 end
 
 roster = function()
@@ -206,7 +213,16 @@ rebuild = function(player)
 	local prompt = building:FindFirstChild("AppraisalPrompt", true)
 	if prompt then
 		prompt.Triggered:Connect(function(visitor)
-			if visitor == player then sendSnapshot(player); open(player, "case") else requestPeer(visitor, player) end
+			if visitor == player then message(player, "Сядь в кресло за стойкой — рабочее дело откроется автоматически.") else requestPeer(visitor, player) end
+		end)
+	end
+	local seat = building:FindFirstChild("AppraiserSeat", true)
+	if seat then
+		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+			local occupant = seat.Occupant
+			if occupant and occupant.Parent ~= player.Character then occupant.Sit = false; return end
+			sendSnapshot(player)
+			if occupant then open(player,"case") else State:FireClient(player,{kind="leaveDesk"}) end
 		end)
 	end
 	local registry = building:FindFirstChild("RegistryPrompt", true)
@@ -231,7 +247,7 @@ local function reward(player, record, quote, auth, purchase)
 	p.stats.served += 1
 	if outcome.good then p.stats.good += 1 end
 	if outcome.correctAuth and not record.item.genuine then p.stats.fakes += 1 end
-	if p.specialty == def.spec then p.specXP[p.specialty] += if outcome.good then 16 else 7 else p.specXP[p.specialty] += 2 end
+	p.specXP[def.spec] += if outcome.good then 16 else 7
 	registerSeen(p, def.id)
 	if purchase then
 		record.item.paid = purchase; table.insert(p.inventory, record.item); p.stats.purchases += 1
@@ -267,7 +283,7 @@ local function completePeer(player, record, data)
 	p.stats.served += 1; if outcome.good then p.stats.good += 1 end
 	if outcome.correctAuth and not item.genuine then p.stats.fakes += 1 end
 	registerSeen(p, def.id)
-	p.specXP[p.specialty] += if p.specialty == def.spec then 10 else 2
+	p.specXP[def.spec] += if outcome.good then 12 else 6
 	item.lastAppraiser = player.UserId; item.lastReportAt = os.time()
 	table.insert(item.reports, { by = player.DisplayName, quote = Domain.money(data.quote), auth = data.auth, at = os.time() })
 	if #item.reports > 3 then table.remove(item.reports, 1) end
@@ -287,13 +303,14 @@ end
 handlers.Open = function(player, data)
 	local panel = if type(data) == "table" then data.panel else "case"
 	if panel == "case" or panel == "workshop" or panel == "inventory" or panel == "specialty" or panel == "titles" or panel == "guide" then
+		if panel == "case" and not working(player,sessions[player]) then message(player,"Сядь в рабочее кресло своего бюро, чтобы начать оценку."); return end
 		sendSnapshot(player); open(player, panel)
 	end
 end
 handlers.Inspect = function(player, data)
 	local s, p = sessions[player], Profiles.loaded[player]
 	if type(data) ~= "table" or type(data.tool) ~= "string" or not Config.Tools[data.tool] then return end
-	if not atDesk(player, s) then message(player, "Для исследования подойди к своему рабочему столу."); return end
+	if not working(player, s) then message(player, "Для исследования сядь в своё рабочее кресло."); return end
 	local record = getRecord(player, data.caseId)
 	if not record then message(player, "Это дело уже закрыто."); sendSnapshot(player); return end
 	if record.busy then message(player, "Дождись завершения текущего исследования."); return end
@@ -306,13 +323,13 @@ handlers.Inspect = function(player, data)
 		local current = getRecord(player, data.caseId)
 		if current ~= record or record.busy ~= token or not Profiles.loaded[player] then return end
 		record.busy = nil
-		if not atDesk(player, sessions[player]) then message(player, "Исследование прервано: ты отошёл от стола."); sendSnapshot(player); return end
+		if not working(player, sessions[player]) then message(player, "Исследование прервано: ты встал из кресла."); sendSnapshot(player); return end
 		record.tests[data.tool] = Domain.test(p, index[record.item.id], record.item, data.tool)
 		sendSnapshot(player)
 	end)
 end
 handlers.Complete = function(player, data)
-	if not validVerdict(data) or not atDesk(player, sessions[player]) then message(player, "Нужны цена, заключение о подлинности и рабочий стол."); return end
+	if not validVerdict(data) or not working(player, sessions[player]) then message(player, "Нужны цена, заключение и место в своём рабочем кресле."); return end
 	local record, kind = getRecord(player, data.caseId)
 	if not record then message(player, "Это дело уже закрыто."); sendSnapshot(player); return end
 	if record.busy then message(player, "Исследование ещё идёт."); return end
@@ -321,7 +338,7 @@ end
 handlers.Offer = function(player, data)
 	local p, s = Profiles.loaded[player], sessions[player]
 	if not validVerdict(data) or not Domain.finite(data.amount) or data.amount < 1 or data.amount > 100000000 then message(player, "Введи цену оценки и сумму выкупа."); return end
-	if not atDesk(player, s) then return end
+	if not working(player, s) then return end
 	local record, kind = getRecord(player, data.caseId)
 	if not record or kind ~= "npc" or record.busy then return end
 	if #p.inventory >= Config.InventoryLimit then message(player, "Коллекция заполнена. Продай часть предметов скупщику."); return end
@@ -371,20 +388,12 @@ handlers.Specialty = function(player, data)
 	local p = Profiles.loaded[player]
 	if type(data) ~= "table" or not Config.Specs[data.spec] then return end
 	if data.spec == p.specialty then return end
-	local cost = if p.stats.served == 0 then 0 else 200
-	if availableCash(player) < cost then message(player, "Смена специальности стоит 200 монет."); return end
-	p.cash -= cost; p.specialty = data.spec
+	p.specialty = data.spec
 	message(player, "Основная специальность: " .. Config.Specs[data.spec].name .. ". Опыт остальных направлений сохранён.", "good")
 	sendSnapshot(player); roster()
 end
 handlers.Train = function(player)
-	local p = Profiles.loaded[player]
-	local level = Domain.specLevel(p.specXP[p.specialty])
-	if level >= 10 then message(player, "Достигнут десятый уровень специальности."); return end
-	local cost = level * 220
-	if availableCash(player) < cost then message(player, "Обучение стоит " .. cost .. " монет."); return end
-	p.cash -= cost; p.specXP[p.specialty] = 30 * level * level
-	message(player, "Повышена квалификация: уровень " .. (level + 1), "good"); sendSnapshot(player); roster()
+	message(player,"Профессии развиваются практикой: оценивай предметы этого направления. Покупать уровни не требуется.")
 end
 handlers.Carry = function(player, data)
 	if type(data) ~= "table" then return end
@@ -409,7 +418,7 @@ handlers.PeerAccept = function(player, data)
 	if type(data) ~= "table" then return end
 	local r = requests[data.id]
 	if not r or r.appraiser ~= player or r.accepted then return end
-	if not atDesk(player, sessions[player]) then message(player, "Для приёма экспертизы подойди к своему столу."); return end
+	if not working(player, sessions[player]) then message(player, "Для приёма экспертизы сядь в своё рабочее кресло."); return end
 	if not near(r.visitor, sessions[player].plot.Anchor.Position, 110) then cancelRequest(r.id, "Посетитель ушёл из бюро."); return end
 	r.accepted = true; r.expires = os.clock() + 110
 	message(r.visitor, "Оценщик принял предмет. Он выдаст заключение после исследования.")

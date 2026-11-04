@@ -4,6 +4,8 @@ local PhysicsService = game:GetService("PhysicsService")
 local TweenService = game:GetService("TweenService")
 local Config = require(game.ReplicatedStorage.Shared.Config)
 local Domain = require(game.ReplicatedStorage.Shared.Domain)
+local Visits = require(game.ReplicatedStorage.Shared.Visits)
+local Stories = require(game.ReplicatedStorage.Shared.Stories)
 
 local Customers = { sessions = {}, actors = {} }
 local callbacks, catalog, byId
@@ -17,9 +19,11 @@ local function world(session, x, y, z)
 end
 
 function Customers.NewItem(def, reputation)
-	return { id = def.id, uid = HttpService:GenerateGUID(false), seed = rng:NextInteger(1, 2000000000),
+	local item = { id = def.id, uid = HttpService:GenerateGUID(false), seed = rng:NextInteger(1, 2000000000),
 		genuine = rng:NextNumber() < math.clamp(0.78 - reputation * 0.0012, 0.58, 0.78),
 		condition = rng:NextNumber(0.35, 1), demand = rng:NextNumber(0.85, 1.2), reports = {} }
+	item.story = Stories.Build(def, item)
+	return item
 end
 
 local function setMood(record, mood, phrase)
@@ -45,7 +49,7 @@ function Customers.Mood(player, mood, phrase)
 	if record then record.moodLock = os.clock() + 5; setMood(record, mood, phrase) end
 end
 
-local function decorate(model, displayName)
+local function decorate(model, displayName, specialty)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.CollisionGroup = "Customers"
@@ -58,15 +62,37 @@ local function decorate(model, displayName)
 	if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None; humanoid.WalkSpeed = 10; humanoid.JumpHeight = 4 end
 	local head = model:FindFirstChild("Head")
 	if head then
-		local board = Instance.new("BillboardGui"); board.Name = "CustomerMood"; board.Size = UDim2.fromOffset(180, 86)
-		board.StudsOffset = Vector3.new(0, 3.1, 0); board.MaxDistance = 52; board.AlwaysOnTop = false; board.Parent = head
-		local mood = Instance.new("TextLabel"); mood.Name = "Mood"; mood.Size = UDim2.fromOffset(54, 42); mood.Position = UDim2.fromOffset(63, 0)
+		local board = Instance.new("BillboardGui"); board.Name = "CustomerMood"; board.Size = UDim2.fromOffset(320, 172)
+		board.StudsOffset = Vector3.new(0, 4.5, 0); board.MaxDistance = 42; board.AlwaysOnTop = false; board.Parent = head
+		local mood = Instance.new("TextLabel"); mood.Name = "Mood"; mood.Size = UDim2.fromOffset(40, 38); mood.Position = UDim2.fromOffset(0, 0)
 		mood.BackgroundColor3 = Color3.fromRGB(249, 245, 228); mood.BackgroundTransparency = 0.08; mood.TextSize = 29; mood.Text = "🙂"; mood.Parent = board
 		local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 12); corner.Parent = mood
-		local name = Instance.new("TextLabel"); name.Name = "CustomerName"; name.Size = UDim2.new(1, 0, 0, 18); name.Position = UDim2.fromOffset(0, 43)
+		local spec = Config.Specs[specialty]
+		local badge = Instance.new("TextLabel"); badge.Name = "ProfessionSymbol"; badge.Text = spec.symbol; badge.Font = Enum.Font.GothamBold
+		badge.TextColor3 = Color3.fromRGB(225, 195, 128); badge.TextSize = 26; badge.BackgroundColor3 = Color3.fromRGB(25, 40, 40)
+		badge.Size = UDim2.fromOffset(40,38); badge.Position = UDim2.fromOffset(45,0); badge.Parent = board
+		local round = Instance.new("UICorner"); round.CornerRadius = UDim.new(0,8); round.Parent = badge
+		local rect = Config.ProfessionIconRects[spec.icon]
+		if Config.ProfessionIconAtlas > 0 and (rect or Config.ProfessionIconCell.width > 0) then
+			badge.Text = ""
+			local icon = Instance.new("ImageLabel"); icon.BackgroundTransparency = 1; icon.Size = UDim2.fromScale(1,1)
+			icon.Image = "rbxassetid://" .. Config.ProfessionIconAtlas
+			icon.ScaleType=Enum.ScaleType.Fit
+			icon.ImageRectOffset = if rect then Vector2.new(rect[1],rect[2]) else Vector2.new((spec.icon-1)*Config.ProfessionIconCell.width,0)
+			icon.ImageRectSize = if rect then Vector2.new(rect[3],rect[4]) else Vector2.new(Config.ProfessionIconCell.width,Config.ProfessionIconCell.height); icon.Parent = badge
+		end
+		local name = Instance.new("TextLabel"); name.Name = "CustomerName"; name.Size = UDim2.fromOffset(226, 18); name.Position = UDim2.fromOffset(94, 0)
 		name.BackgroundTransparency = 1; name.Font = Enum.Font.GothamMedium; name.TextSize = 12; name.TextColor3 = Color3.fromRGB(252, 246, 224)
 		name.TextStrokeTransparency = 0.5; name.Text = displayName; name.Parent = board
-		local caption = name:Clone(); caption.Name = "Caption"; caption.TextSize = 10; caption.Position = UDim2.fromOffset(0, 62); caption.Text = "Жду своей очереди"; caption.Parent = board
+		local required = name:Clone(); required.Name = "RequiredProfession"; required.TextSize = 11; required.Position = UDim2.fromOffset(94,20)
+		required.Text = "Нужен: " .. spec.name; required.TextColor3 = Color3.fromRGB(225,195,128); required.Parent = board
+		local caption = name:Clone(); caption.Name = "Caption"; caption.TextSize = 12; caption.Position = UDim2.fromOffset(0, 45)
+		caption.Size = UDim2.fromOffset(320,0); caption.AutomaticSize = Enum.AutomaticSize.Y; caption.TextWrapped = true
+		caption.TextColor3 = Color3.fromRGB(31,43,43); caption.TextStrokeTransparency = 1; caption.BackgroundTransparency = 0.06
+		caption.BackgroundColor3 = Color3.fromRGB(249,245,228); caption.Text = "Жду своей очереди"; caption.Parent = board
+		local padding = Instance.new("UIPadding"); padding.PaddingTop = UDim.new(0,7); padding.PaddingBottom = UDim.new(0,7)
+		padding.PaddingLeft = UDim.new(0,9); padding.PaddingRight = UDim.new(0,9); padding.Parent = caption
+		local bubbleCorner = Instance.new("UICorner"); bubbleCorner.CornerRadius = UDim.new(0,9); bubbleCorner.Parent = caption
 	end
 	return humanoid
 end
@@ -92,23 +118,24 @@ local function move(record, session, points, token, leaving)
 end
 
 local function walkToSlot(session, record, index)
+	local wasInside = record.arrived and record.slot ~= nil
+	record.previousSlot = record.slot
 	record.slot = index; record.arrived = false
 	record.moveToken += 1
 	local token = record.moveToken
 	task.spawn(function()
 		local points
-		if index == 1 then
-			points = { Vector3.new(0, 3, -48), Vector3.new(0, 3, -20), Vector3.new(0, 3, -1) }
-		else
-			points = { Vector3.new(-18, 3, -72), Vector3.new(-18, 3, -48 - (index - 2) * 6) }
-		end
+		local slot = Config.QueueSlots[index]
+		local old = Config.QueueSlots[record.previousSlot or index]
+		points = if wasInside then { Vector3.new(old[1],3,-8.5), Vector3.new(0,3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
+			else { Vector3.new(0,3,-48), Vector3.new(0,3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
 		if move(record, session, points, token) and session.alive and record.moveToken == token then
 			record.arrived = true
 			if index == 1 then
 				record.humanoid:MoveTo(world(session, 0, 3, -1))
 				local root = record.model:FindFirstChild("HumanoidRootPart")
 				if root then root.CFrame = CFrame.lookAt(root.Position, world(session, 0, root.Position.Y, 10)) end
-				setMood(record, "think", "Готов рассказать о своей вещи")
+				setMood(record, "think", record.item.story)
 			end
 			callbacks.changed(session.player)
 		elseif session.alive and record.moveToken == token then
@@ -136,8 +163,8 @@ local function remove(session, record, mood)
 	task.spawn(function()
 		task.wait(1.5)
 		if record.model and record.model.Parent then
-			local points = if index == 1 then { Vector3.new(0, 3, -20), Vector3.new(0, 3, -48), Vector3.new(30, 3, -75), Vector3.new(48, 3, -94) }
-				else { Vector3.new(-18, 3, -74), Vector3.new(20, 3, -84), Vector3.new(48, 3, -94) }
+			local slot=Config.QueueSlots[record.slot or 1]
+			local points = { Vector3.new(slot[1],3,-8.5), Vector3.new(0,3,-8.5), Vector3.new(0, 3, -48), Vector3.new(30, 3, -75), Vector3.new(48, 3, -94) }
 			move(record, session, points, token, true)
 			record.model:Destroy()
 		end
@@ -183,13 +210,21 @@ function Customers.Spawn(player, forcedId, immediate)
 		end
 		def = pool[rng:NextInteger(1, #pool)]
 	end
-	local friend = if #session.friends > 0 then session.friends[rng:NextInteger(1, #session.friends)] else nil
+	local blocked = {}; for _, visitor in ipairs(session.queue) do if visitor.friendId then blocked[visitor.friendId] = true end end
+	local friend = Visits.Next(session.visits, session.friends, rng, blocked)
+	if #session.friends > 0 and not friend then return false end
 	local displayName = if friend then friend.name else ({ "Алекс · классический гость", "Робин · классический гость", "Сэм · классический гость", "Бэкон · классический гость" })[rng:NextInteger(1, 4)]
 	local record = { id = HttpService:GenerateGUID(false), item = Customers.NewItem(def, profile.reputation), name = displayName,
-		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", age = 0 }
+		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", age = 0, friendId = friend and friend.id }
 	table.insert(session.queue, record)
 	task.spawn(function()
 		local model
+		if friend then
+			if not descriptionCache[friend.id] then
+				local got, description = pcall(function() return Players:GetHumanoidDescriptionFromUserIdAsync(friend.id) end)
+				if got then descriptionCache[friend.id] = description end
+			end
+		end
 		if friend and descriptionCache[friend.id] then
 			local ok, result = pcall(function() return Players:CreateHumanoidModelFromDescriptionAsync(descriptionCache[friend.id], Enum.HumanoidRigType.R15) end)
 			if ok then model = result end
@@ -197,7 +232,7 @@ function Customers.Spawn(player, forcedId, immediate)
 		if not model then model = game.ServerStorage.Templates.BaconCustomer:Clone() end
 		if not session.alive or not table.find(session.queue, record) then model:Destroy(); return end
 		model.Name = "Customer_" .. string.sub(record.id, 1, 8)
-		record.model = model; record.humanoid = decorate(model, displayName)
+		record.model = model; record.humanoid = decorate(model, displayName, def.spec)
 		Customers.actors[record] = session
 		local primary = model:FindFirstChild("HumanoidRootPart")
 		if primary then model.PrimaryPart = primary end
@@ -205,7 +240,7 @@ function Customers.Spawn(player, forcedId, immediate)
 		model:PivotTo(session.plot.Anchor.CFrame * (if immediate then CFrame.new(0, 4.2, -1) * CFrame.Angles(0, math.pi, 0) else CFrame.new(46, 3.2, -94)))
 		local root = model:FindFirstChild("HumanoidRootPart")
 		if root then pcall(function() root:SetNetworkOwner(nil) end) end
-		if immediate then record.slot = 1; record.arrived = true; setMood(record, "think", "Тестовый предмет готов к осмотру")
+		if immediate then record.slot = 1; record.arrived = true; setMood(record, "think", record.item.story)
 		else walkToSlot(session, record, table.find(session.queue, record)) end
 		callbacks.changed(player)
 	end)
@@ -214,25 +249,13 @@ function Customers.Spawn(player, forcedId, immediate)
 end
 
 function Customers.Attach(player, plot, profile)
-	local session = { player = player, plot = plot, profile = profile, queue = {}, friends = {}, alive = true, nextSpawn = os.clock() + 2 }
+	local session = { player = player, plot = plot, profile = profile, queue = {}, friends = {}, visits = {}, alive = true, nextSpawn = os.clock() + 2 }
 	Customers.sessions[player] = session
 	task.spawn(function()
 		local ok, pages = pcall(function() return Players:GetFriendsAsync(player.UserId) end)
 		if not ok or not session.alive then return end
-		local candidates = {}
-		for _, friend in ipairs(pages:GetCurrentPage()) do
-			if #candidates >= 12 then break end
-			table.insert(candidates, { id = friend.Id, name = friend.DisplayName or friend.Username })
-		end
-		for _, friend in ipairs(candidates) do
-			if not session.alive then break end
-			if not descriptionCache[friend.id] then
-				local got, description = pcall(function() return Players:GetHumanoidDescriptionFromUserIdAsync(friend.id) end)
-				if got then descriptionCache[friend.id] = description end
-			end
-			if descriptionCache[friend.id] then table.insert(session.friends, friend) end
-			task.wait(0.3)
-		end
+		local friends = Visits.ReadPages(pages,function() return session.alive end,function() task.wait(0.05) end)
+		if session.alive then session.friends=friends end
 	end)
 end
 
