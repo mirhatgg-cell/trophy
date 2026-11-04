@@ -1,93 +1,37 @@
 #!/usr/bin/env python3
-"""Build a deterministic Roblox XML place using only Python's standard library."""
+"""Museum-first artifacts, including a complete static binary place and an XML bootstrap."""
 from pathlib import Path
-import xml.etree.ElementTree as ET
-import argparse
-import math
-import re
-import json
-import hashlib
-from architecture import Architect
-from world_spec import records
-
-ROOT = Path(__file__).resolve().parents[1]
-
-def build():
-    root = ET.Element('roblox', {'version':'4'})
-    ET.SubElement(root, 'External').text = 'null'
-    ET.SubElement(root, 'External').text = 'nil'
-    serial = 0
-
-    def item(parent, cls, name, props=()):
-        nonlocal serial
-        serial += 1
-        obj = ET.SubElement(parent, 'Item', {'class':cls, 'referent':f'RBX{serial:08d}'})
-        properties = ET.SubElement(obj, 'Properties')
-        ET.SubElement(properties, 'string', {'name':'Name'}).text = name
-        for typ, key, value in props:
-            field = ET.SubElement(properties, typ, {'name':key})
-            if typ == 'Vector3':
-                for axis, num in zip(('X','Y','Z'), value): ET.SubElement(field,axis).text = str(num)
-            elif typ == 'Color3':
-                for axis, num in zip(('R','G','B'), value): ET.SubElement(field,axis).text = str(num/255)
-            elif typ == 'CoordinateFrame':
-                for axis, num in zip(('X','Y','Z'),value[:3]): ET.SubElement(field,axis).text = str(num)
-                for row in range(3):
-                    for col in range(3): ET.SubElement(field,f'R{row}{col}').text = str(((math.cos(value[3]) if row==col and row!=1 else 1 if row==col else math.sin(value[3]) if row==0 and col==2 else -math.sin(value[3]) if row==2 and col==0 else 0) if len(value)>3 else (1 if row==col else 0)))
-            elif typ == 'UDim2':
-                for axis, num in zip(('XS','XO','YS','YO'),value): ET.SubElement(field,axis).text = str(num)
-            else: field.text = str(value).lower() if isinstance(value,bool) else str(value)
-        return obj
-
-    workspace = item(root,'Workspace','Workspace', [('float','Gravity',196.2), ('float','FallenPartsDestroyHeight',-10000),('bool','StreamingEnabled',True),('int','StreamingMinRadius',256),('int','StreamingTargetRadius',1024)])
-    world=item(workspace,'Folder','WorldMap')
-    architect=Architect(item)
-    architect.landscape(world)
-    architect.lobby(world)
-    for g in records():
-        architect.mountain(world,g)
-        architect.horizon(world,g)
-    storage=item(root,'ServerStorage','ServerStorage')
-    architect.museum(storage)
-    public=architect.museum(world)
-    public.find("Properties/string[@name='Name']").text='PublicArchive'
-    for cf in public.findall(".//CoordinateFrame[@name='CFrame']"):
-        cf.find('X').text=str(float(cf.find('X').text)-1000)
-        cf.find('Z').text=str(float(cf.find('Z').text)+700)
-    item(root,'Lighting','Lighting',[
-        ('Color3','Ambient',(135,145,153)),('Color3','OutdoorAmbient',(145,154,162)),('float','Brightness',2),
-        ('float','ClockTime',14.7),('bool','GlobalShadows',True),('float','EnvironmentDiffuseScale',.6),('float','EnvironmentSpecularScale',.7)])
-    # Services and scripts are embedded: the rbxlx runs without plugins or downloads.
-    rs=item(root,'ReplicatedStorage','ReplicatedStorage')
-    item(rs,'RemoteEvent','TrophyEvent')
-    build_id=re.search(r"C.BuildId = '([^']+)'",(ROOT/'src/Catalog.lua').read_text()).group(1)
-    item(rs,'StringValue','MountainverseBuildId',[('string','Value',build_id)])
-    for module in ('Catalog','TrophyIcons','Trials','Elimination','Infrastructure'):
-        item(rs,'ModuleScript',module,[('ProtectedString','Source',(ROOT/f'src/{module}.lua').read_text())])
-    server=item(root,'ServerScriptService','ServerScriptService')
-    item(server,'Script','TrophyServer',[('ProtectedString','Source',(ROOT/'src/Server.server.lua').read_text()),('bool','Disabled',False)])
-    starter=item(root,'StarterPlayer','StarterPlayer',[('float','CameraMaxZoomDistance',180),('float','CameraMinZoomDistance',5)])
-    scripts=item(starter,'StarterPlayerScripts','StarterPlayerScripts')
-    item(scripts,'LocalScript','TrophyClient',[('ProtectedString','Source',(ROOT/'src/Client.client.lua').read_text()),('bool','Disabled',False)])
-    ET.indent(root,space='  ')
-    return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
-
+import argparse,subprocess,shutil,hashlib,json,tempfile
+ROOT=Path(__file__).resolve().parents[1]
+def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def sources():
+ paths=[ROOT/'tools/museum_scene.py',ROOT/'assets/trophy-shapes.json',ROOT/'assets/rank-ornaments.json',*sorted((ROOT/'src/museum').glob('*.lua'))]
+ return {str(p.relative_to(ROOT)):digest(p)for p in paths}
+def metadata():
+ for alias in ('Mountainverse.rbxlx','Trophy.rbxlx'):shutil.copyfile(ROOT/'Museum.rbxlx',ROOT/alias)
+ r=json.loads((ROOT/'docs/museum-readback-report.json').read_text())
+ files=['Museum.rbxl','Museum.rbxlx','Museum.Full.rbxlx.gz','Mountainverse.rbxlx','Trophy.rbxlx']
+ data={'build_id':'MUSEUM-2026.11.04-r4','primary_file':'Museum.rbxl','architecture_parts':r['architecture_parts'],'total_parts':r['parts'],'exhibits':len(r['trophy_body_parts']),'smallest_trophy_body':min(r['trophy_body_parts'].values()),'files':{f:digest(ROOT/f)for f in files},'sources':sources(),'formats':{'Museum.rbxl':'Complete static place, all 500000+ architectural Parts exist before Play','Museum.Full.rbxlx.gz':'Same complete static place as compressed XML; decompress before opening','Museum.rbxlx':'Light XML: complete collidable structure and mutation samples; remaining sculptural and surface detail is generated at Play'}}
+ (ROOT/'build-info.json').write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
+def check():
+ info=json.loads((ROOT/'build-info.json').read_text());assert info['build_id']=='MUSEUM-2026.11.04-r4'
+ assert info['sources']==sources(),'Museum source changed since export'
+ for file,sha in info['files'].items():assert digest(ROOT/file)==sha,'Artifact mismatch: '+file
+ assert (ROOT/'Museum.rbxlx').read_bytes()==(ROOT/'Mountainverse.rbxlx').read_bytes()==(ROOT/'Trophy.rbxlx').read_bytes()
+ r=json.loads((ROOT/'docs/museum-readback-report.json').read_text())
+ assert r['architecture_parts']>500000 and len(r['trophy_body_parts'])==74 and min(r['trophy_body_parts'].values())>=1000
+ print('PASS: artifact hashes, source fingerprints, both legacy download paths, architecture budget and per-trophy budget')
+def build(codec):
+ from museum_scene import build_scene
+ with tempfile.TemporaryDirectory(prefix='museum-export-')as d:
+  lite=Path(d)/'lite.jsonl.gz';full=Path(d)/'full.jsonl.gz'
+  build_scene(lite,False);build_scene(full,True)
+  subprocess.run([codec,'--input',str(lite),'--xml',str(ROOT/'Museum.rbxlx'),'--report',str(ROOT/'docs/museum-lite-codec-report.json')],check=True)
+  subprocess.run([codec,'--input',str(full),'--output',str(ROOT/'Museum.rbxl'),'--xml',str(ROOT/'Museum.Full.rbxlx.gz'),'--report',str(ROOT/'docs/museum-encoded-report.json')],check=True)
+  subprocess.run([codec,'--read',str(ROOT/'Museum.rbxl'),'--report',str(ROOT/'docs/museum-readback-report.json')],check=True)
+ metadata();check()
 if __name__=='__main__':
-    parser=argparse.ArgumentParser()
-    parser.add_argument('--check',action='store_true',help='Fail if the committed place differs from source')
-    args=parser.parse_args()
-    targets=[ROOT/'Mountainverse.rbxlx',ROOT/'Trophy.rbxlx']
-    data=build()
-    tree=ET.fromstring(data)
-    build_id=re.search(r"C.BuildId = '([^']+)'",(ROOT/'src/Catalog.lua').read_text()).group(1)
-    metadata={"build_id":build_id,"canonical_file":"Mountainverse.rbxlx","compatibility_file":"Trophy.rbxlx", "sha256":hashlib.sha256(data).hexdigest(),"bytes_per_file":len(data),"physical_parts":sum(x.attrib.get('class') in ('Part','WedgePart','SpawnLocation') for x in tree.iter('Item')),"scripts":sum(x.attrib.get('class') in ('Script','LocalScript','ModuleScript') for x in tree.iter('Item'))}
-    metadata_bytes=(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n').encode()
-    if args.check:
-        for target in targets:
-            if not target.exists() or target.read_bytes()!=data: raise SystemExit(f'{target.name} is stale; run python3 tools/build_place.py')
-        if not (ROOT/'build-info.json').exists() or (ROOT/'build-info.json').read_bytes()!=metadata_bytes: raise SystemExit('build-info.json is stale')
-        print(f'OK: both download filenames contain {build_id}; SHA-256 {metadata["sha256"]}')
-    else:
-        for target in targets: target.write_bytes(data)
-        (ROOT/'build-info.json').write_bytes(metadata_bytes)
-        print(f'Built both download files: {build_id}, {len(data):,} bytes each')
+ p=argparse.ArgumentParser();p.add_argument('--codec',default='/tmp/mv-placecodec');p.add_argument('--check',action='store_true');p.add_argument('--metadata-only',action='store_true');a=p.parse_args()
+ if a.check:check()
+ elif a.metadata_only:metadata();check()
+ else:build(a.codec)
