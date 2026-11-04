@@ -1,50 +1,35 @@
 #!/usr/bin/env python3
-"""Verify packaging, compile Luau and run server logic in a deterministic mock harness.
-Usage: python3 tools/check.py --luau /path/to/luau --compiler /path/to/luau-compile
-The harness does not substitute for Studio physics and multiplayer playtests.
+"""Compile, validate serialized geometry and run real server sources against API doubles.
+This checks logic, never claims to test Roblox physics, Studio rendering or live services.
 """
-import argparse
-import subprocess
-import tempfile
+import argparse,subprocess,tempfile,xml.etree.ElementTree as ET
 from pathlib import Path
-import xml.etree.ElementTree as ET
-from build_place import build, ROOT
-
-parser=argparse.ArgumentParser()
-parser.add_argument('--luau',required=True)
-parser.add_argument('--compiler',required=True)
-args=parser.parse_args()
-place=ROOT/'Trophy.rbxlx'
-assert place.read_bytes()==build(), 'Rebuild Trophy.rbxlx'
+from build_place import build,ROOT
+from world_spec import records
+p=argparse.ArgumentParser();p.add_argument('--luau',required=True);p.add_argument('--compiler',required=True);args=p.parse_args()
+place=ROOT/'Mountainverse.rbxlx';assert place.read_bytes()==build(),'Place is stale'
 xml=ET.parse(place)
-expected={'Catalog':'Catalog.lua','TrophyServer':'Server.server.lua','TrophyClient':'Client.client.lua'}
-seen=set()
+expected={k:k+'.lua' for k in ('Catalog','TrophyIcons','Trials','Elimination','Infrastructure')}
+expected.update(TrophyServer='Server.server.lua',TrophyClient='Client.client.lua')
+seen=set();names=[];parts=0;refs=set()
 for item in xml.iter('Item'):
-    props=item.find('Properties')
-    name=props.find("string[@name='Name']").text
-    if name in expected:
-        assert props.find("ProtectedString[@name='Source']").text==(ROOT/'src'/expected[name]).read_text()
-        seen.add(name)
-assert seen==expected.keys()
-subprocess.run([args.compiler,'--null',*[str(ROOT/'src'/p) for p in expected.values()]],check=True)
-fixture=(ROOT/'tools/runtime_fixture.luau').read_text()
-catalog=(ROOT/'src/Catalog.lua').read_text()
-server=(ROOT/'src/Server.server.lua').read_text()
-checks=(ROOT/'tools/runtime_checks.luau').read_text()
-invariants='''
-assert(#C.Games==50 and #C.LevelWins==20 and #C.Shop>=8 and #C.Achievements>=8)
-local names,kinds={},{}
-for id,g in ipairs(C.Games) do assert(g.id==id and not names[g.name]); names[g.name]=true; kinds[g.kind]=(kinds[g.kind] or 0)+1 end
-local count=0; for _,n in pairs(kinds) do assert(n==5); count+=1 end; assert(count==10)
-assert(C.Level(0)==0 and C.Level(1)==1 and C.Level(2)==1 and C.Level(3)==2 and C.Level(100000)==20)
-for i,n in ipairs(C.LevelWins) do assert(C.Level(n)==i); if i>1 then assert(C.Level(n-1)==i-1 and n>C.LevelWins[i-1]) end end
-assert(C.MutationChance==0.001 and not C.PublicTestAdmin)
-local ids={}; for _,item in ipairs(C.Shop) do assert(not ids[item.id] and item.price>0); ids[item.id]=true end
-print('PASS: 50 catalog entries, 10 families, 20 upgrade boundaries, shop IDs, rare mutation rate')
-'''
-source=fixture+'\nlocal C=(function()\n'+catalog+'\nend)()\n'+invariants+'\nlocal require=function() return C end\nlocal function boot()\n'+server+'\nend\nboot()\n'+checks
-with tempfile.TemporaryDirectory(prefix='trophy-check-') as folder:
-    script=Path(folder)/'server_check.luau'
-    script.write_text(source)
-    subprocess.run([args.luau,str(script)],check=True)
-print('PASS: rbxlx structure, embedded script equality, deterministic rebuild, Luau compilation')
+ props=item.find('Properties');name=props.find("string[@name='Name']").text;names.append(name)
+ assert item.attrib['referent'] not in refs;refs.add(item.attrib['referent'])
+ if item.attrib['class'] in ('Part','SpawnLocation'): parts+=1
+ if name in expected:
+  assert props.find("ProtectedString[@name='Source']").text==(ROOT/'src'/expected[name]).read_text();seen.add(name)
+assert seen==expected.keys();assert parts>4000
+for i in range(1,51):assert f'TrialGate{i}' in names and f'Stand{i}' in names
+assert len(records())==50 and len({r['kind'] for r in records()})==50
+subprocess.run([args.compiler,'--null',*[str(ROOT/'src'/f) for f in expected.values()]],check=True)
+fixture=(ROOT/'tools/runtime_fixture.luau').read_text().replace('-- ROBLOX_MATH_INSERT',(ROOT/'tools/roblox_math.luau').read_text())
+modules='\nlocal modules={}\n'
+for name in ('Catalog','TrophyIcons','Trials','Elimination','Infrastructure'):
+ modules+='modules.'+name+'=(function()\n'+(ROOT/'src'/expected[name]).read_text()+'\nend)()\n'
+# All require targets must exist. The catalog is real; no substitute rules or fake game engine.
+modules+="local C=modules.Catalog\nfor _,name in ipairs({'TrophyIcons','Trials','Elimination','Infrastructure'}) do local m=Instance.new('ModuleScript',RS); m.Name=name end\nlocal require=function(m) return assert(modules[m.Name],m.Name) end\n"
+for offline in (False,True):
+ source=fixture+'\n'+modules+'\nlocal OFFLINE='+str(offline).lower()+'\nDS.fail=OFFLINE\nlocal function boot()\n'+(ROOT/'src/Server.server.lua').read_text()+'\nend\nboot()\n'+(ROOT/'tools/engine_checks.luau').read_text()
+ with tempfile.TemporaryDirectory(prefix='mountainverse-check-') as folder:
+  file=Path(folder)/'check.luau';file.write_text(source);subprocess.run([args.luau,str(file)],check=True)
+print(f'PASS: XML refs, embedded source equality, {parts:,} physical parts, 50 mountain contracts, 50 museum exhibits, deterministic build')

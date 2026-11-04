@@ -26,21 +26,10 @@ local os={clock=function() return clock end}
 local function signal()
  local handlers={}
  return {Connect=function(_,fn) table.insert(handlers,fn); return {Disconnect=function() end} end,
- Fire=function(_,...) for _,fn in ipairs(handlers) do fn(...) end end,
+ Fire=function(_,...) for _,fn in ipairs(handlers) do task.spawn(fn,...) end end,
  Wait=function() task.wait(.01) end}
 end
-local Vector3={}
-local vmt={}
-function Vector3.new(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vmt) end
-Vector3.zero=Vector3.new()
-vmt.__add=function(a,b) return Vector3.new(a.X+b.X,a.Y+b.Y,a.Z+b.Z) end
-vmt.__sub=function(a,b) return Vector3.new(a.X-b.X,a.Y-b.Y,a.Z-b.Z) end
-vmt.__mul=function(a,b) return Vector3.new(a.X*b,a.Y*b,a.Z*b) end
-vmt.__index=function(v,key)
- if key=='Magnitude' then return math.sqrt(v.X*v.X+v.Y*v.Y+v.Z*v.Z) end
- if key=='Unit' then return v*(1/v.Magnitude) end
-end
-local CFrame={new=function(v) return v end}
+-- ROBLOX_MATH_INSERT
 local Color3={fromRGB=function(r,g,b) return {R=r/255,G=g/255,B=b/255} end,new=function(r,g,b) return {R=r,G=g,B=b} end}
 local ColorSequence={new=function(x) return x end}
 local NumberSequence={new=function(x) return x end}
@@ -67,16 +56,18 @@ end,
    local old=o._props.Parent
    if old then local i=table.find(old._children,o); if i then table.remove(old._children,i) end end
    o._props.Parent=v; if v then table.insert(v._children,o) end
+  elseif k=='Position' then o._props.Position=v; local old=o._props.CFrame or CFrame.new(); o._props.CFrame=CFrame.new(v)*CFrame.Angles(0,0,0); o._props.CFrame.r=old.r
+  elseif k=='CFrame' then o._props.CFrame=v; o._props.Position=v.Position
   else o._props[k]=v end
  end}
 local Instance={new=function(class,parent)
- local obj=setmetatable({_props={ClassName=class,Name=class,Size=Vector3.new(1,1,1),Position=Vector3.zero,CanCollide=true,Health=100,MaxHealth=100,AssemblyLinearVelocity=Vector3.zero},_attributes={},_children={}},mt)
- for _,name in ipairs({'Touched','Triggered','CharacterAdded','OnServerEvent','Heartbeat','PlayerAdded','PlayerRemoving'}) do obj[name]=signal() end
+ local obj=setmetatable({_props={ClassName=class,Name=class,Size=Vector3.new(1,1,1),Position=Vector3.zero,CanCollide=true,Health=100,MaxHealth=100,CFrame=CFrame.new(),AssemblyLinearVelocity=Vector3.zero},_attributes={},_children={}},mt)
+ for _,name in ipairs({'Touched','Triggered','CharacterAdded','OnServerEvent','Heartbeat','PlayerAdded','PlayerRemoving','Activated'}) do obj[name]=signal() end
  table.insert(objects,obj); obj.Parent=parent; return obj
 end}
 function methods:GetChildren() return table.clone(self._children) end
 function methods:GetDescendants() local result={}; for _,o in ipairs(self:GetChildren()) do table.insert(result,o); for _,d in ipairs(o:GetDescendants()) do table.insert(result,d) end end; return result end
-function methods:FindFirstChild(name) for _,o in ipairs(self:GetChildren()) do if o.Name==name then return o end end end
+function methods:FindFirstChild(name,recursive) for _,o in ipairs(recursive and self:GetDescendants() or self:GetChildren()) do if o.Name==name then return o end end end
 function methods:WaitForChild(name) return assert(self:FindFirstChild(name),'Missing '..name) end
 function methods:FindFirstChildWhichIsA(class) for _,o in ipairs(self:GetChildren()) do if o:IsA(class) then return o end end end
 methods.FindFirstChildOfClass=methods.FindFirstChildWhichIsA
@@ -86,12 +77,18 @@ function methods:GetAttribute(k) return self._attributes[k] end
 function methods:ClearAllChildren() for _,o in ipairs(self:GetChildren()) do o:Destroy() end end
 function methods:Destroy() self:ClearAllChildren(); self.Parent=nil end
 function methods:PivotTo(pos)
+ local cf=pos; pos=pos.Position
  if self.ClassName=='Model' then
   local anchor=self.PrimaryPart or self:FindFirstChild('HumanoidRootPart') or self:FindFirstChildWhichIsA('BasePart')
   if anchor then local delta=pos-anchor.Position; for _,o in ipairs(self:GetDescendants()) do if o:IsA('BasePart') then o.Position+=delta end end end
  else self.Position=pos end
 end
-function methods:GetPivot() return self.PrimaryPart and self.PrimaryPart.Position or Vector3.zero end
+function methods:GetPivot() local anchor=self.PrimaryPart or self:FindFirstChild('HumanoidRootPart'); return anchor and anchor.CFrame or CFrame.new() end
+function methods:Clone()
+ local map={}
+ local function clone(old,parent) local c=Instance.new(old.ClassName,parent); map[old]=c; for k,v in pairs(old._props) do if k~='Parent' and k~='PrimaryPart' and k~='Touched' and k~='Triggered' and k~='CharacterAdded' and k~='OnServerEvent' and k~='Heartbeat' and k~='PlayerAdded' and k~='PlayerRemoving' then c[k]=v end end; for _,child in ipairs(old:GetChildren()) do clone(child,c) end; return c end
+ local result=clone(self); for old,c in pairs(map) do if old.PrimaryPart then c.PrimaryPart=map[old.PrimaryPart] end end; return result
+end
 function methods:TakeDamage(n) self.Health=math.max(0,self.Health-n) end
 function methods:IsFriendsWithAsync() return false end
 local Players=Instance.new('Players')
@@ -104,7 +101,7 @@ local RunService={Heartbeat=signal(),studio=true,IsStudio=function(self) return 
 local store={data={}}
 function store:GetAsync(key) return self.data[key] end
 function store:UpdateAsync(key,fn) self.data[key]=fn(self.data[key]); return self.data[key] end
-local DS={GetDataStore=function() return store end}
+local DS={fail=false,GetDataStore=function(self) if self.fail then error('Publish this place before accessing DataStore') end; return store end}
 local TweenService={Create=function(_,obj,_,props) return {Play=function() for k,v in pairs(props) do obj[k]=v end end,Completed=signal()} end}
 local Debris={AddItem=function(_,obj,delay) task.delay(delay,function() obj:Destroy() end) end}
 function methods:GetPlayers() return self:GetChildren() end
@@ -118,6 +115,18 @@ function methods:LoadCharacterAsync()
  self.CharacterAdded:Fire(char)
  return char
 end
-local services={Players=Players,ReplicatedStorage=RS,DataStoreService=DS,RunService=RunService,TweenService=TweenService,Debris=Debris}
+local ServerStorage=Instance.new('ServerStorage')
+local worldMap=Instance.new('Folder',workspace); worldMap.Name='WorldMap'
+local lobbyFixture=Instance.new('Model',worldMap); lobbyFixture.Name='Lobby'
+for i=1,4 do local pad=Instance.new('Part',lobbyFixture); pad.Name='Queue'..i; pad.Position=Vector3.new((i-2.5)*25,0,-18) end
+local liftFixture=Instance.new('Model',lobbyFixture); liftFixture.Name='Lift'
+local cabFixture=Instance.new('Part',liftFixture); cabFixture.Name='Cabin'; cabFixture.Position=Vector3.new(0,.5,0); cabFixture.Size=Vector3.new(12,1,12)
+local upperFixture=Instance.new('Part',liftFixture); upperFixture.Name='UpperStop'; upperFixture.Position=Vector3.new(16,31,0)
+local lowerFixture=Instance.new('Part',liftFixture); lowerFixture.Name='LowerStop'; lowerFixture.Position=Vector3.new(16,0,0)
+local museumFixture=Instance.new('Model',ServerStorage); museumFixture.Name='MuseumTemplate'
+local anchor=Instance.new('Part',museumFixture); anchor.Name='MuseumAnchor'; museumFixture.PrimaryPart=anchor
+local exit=Instance.new('Part',museumFixture); exit.Name='MuseumExit'
+for i=1,50 do local stand=Instance.new('Part',museumFixture); stand.Name='Stand'..i; stand.Position=Vector3.new(i,0,0) end
+local services={ServerStorage=ServerStorage,Players=Players,ReplicatedStorage=RS,DataStoreService=DS,RunService=RunService,TweenService=TweenService,Debris=Debris}
 local game={CreatorType='User',CreatorId=42,GetService=function(_,name) return assert(services[name],name) end,BindToClose=function() end}
 local function warn(message) table.insert(failures,message) end
