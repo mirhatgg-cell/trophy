@@ -6,6 +6,7 @@ local Config = require(game.ReplicatedStorage.Shared.Config)
 local Domain = require(game.ReplicatedStorage.Shared.Domain)
 local Visits = require(game.ReplicatedStorage.Shared.Visits)
 local Stories = require(game.ReplicatedStorage.Shared.Stories)
+local Rarity = require(game.ReplicatedStorage.Shared.Rarity)
 
 local Customers = { sessions = {}, actors = {} }
 local callbacks, catalog, byId
@@ -23,6 +24,11 @@ function Customers.NewItem(def, reputation)
 		genuine = rng:NextNumber() < math.clamp(0.78 - reputation * 0.0012, 0.58, 0.78),
 		condition = rng:NextNumber(0.35, 1), demand = rng:NextNumber(0.85, 1.2), reports = {} }
 	item.story = Stories.Build(def, item)
+	item.visualSeed=rng:NextInteger(1,1000000)
+	-- Surface clues overlap between originals and replicas; appearance alone is not a verdict.
+	item.surfaceTone=rng:NextNumber()*(if item.genuine then .10 else .21)
+	item.repair=rng:NextNumber()<(if item.genuine then .28 else .42)
+	item.mutation,item.uniqueness=Rarity.Roll(rng)
 	return item
 end
 

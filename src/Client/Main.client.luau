@@ -8,6 +8,11 @@ local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Domain = require(ReplicatedStorage.Shared.Domain)
+local InstrumentUI = require(script.Parent:WaitForChild("InstrumentUI"))
+local Appearance = require(ReplicatedStorage.Shared.Appearance)
+local Rarity = require(ReplicatedStorage.Shared.Rarity)
+local Decor = require(ReplicatedStorage.Shared.Decor)
+require(script.Parent:WaitForChild("ItemEffects")).Start()
 local network = ReplicatedStorage:WaitForChild("Network")
 local Action, State = network:WaitForChild("Action"), network:WaitForChild("State")
 
@@ -16,15 +21,22 @@ local C = { ink = Color3.fromRGB(23, 36, 39), deep = Color3.fromRGB(15, 25, 28),
 	gold = Color3.fromRGB(216, 178, 108), copper = Color3.fromRGB(199, 139, 104), line = Color3.fromRGB(70, 87, 86), red = Color3.fromRGB(224, 132, 121) }
 local FONT, BOLD, DISPLAY, NUM = Enum.Font.Gotham, Enum.Font.GothamBold, Enum.Font.Garamond, Enum.Font.Code
 local data, catalog, rows = nil, {}, {}
+local muted=false
+local function updateAudio()local group=SoundService:FindFirstChild("ProbaWorld");if group then group.Volume=if muted then 0 else 1 end end
+SoundService.ChildAdded:Connect(function(group)if group.Name=="ProbaWorld"then updateAudio()end end)
 local activePanel, caseMode, selectedInventory, adminId = nil, "npc", nil, "h01"
+local selectedDecor="sign_painted"
 local caseId, auth, dragAngle, scanUntil = nil, "unknown", 0, 0
+local dragPitch=.42
 local bindings, connections = {}, {}
 local animatedBadges = {}
 local viewportModel, viewportCamera, viewportTarget, viewportSize
 local window, content, pageTitle, pageSubtitle, quoteBox, offerBox, scanLabel, scanBar, receipt
+local casePane,caseBody,caseHeading
 local renderPanel, renderRoster, renderHUD
 local rosterVisible = false
 local rosterShell
+local mentor,mentorHeading,mentorDetail,mentorFocus
 
 local gui = Instance.new("ScreenGui"); gui.Name = "ProbaInterface"; gui.ResetOnSpawn = false; gui.IgnoreGuiInset = false; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.DisplayOrder = 20; gui.Parent = player:WaitForChild("PlayerGui")
@@ -68,6 +80,7 @@ end
 local function emit(action, packet) Action:FireServer(action, packet or {}) end
 local function ping()
 	local sound = Instance.new("Sound"); sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"; sound.Volume = 0.12; sound.Parent = SoundService
+	sound.SoundGroup=SoundService:FindFirstChild("ProbaWorld")
 	SoundService:PlayLocalSound(sound); game:GetService("Debris"):AddItem(sound, 2)
 end
 
@@ -75,7 +88,7 @@ end
 local brand = make("Frame", { BackgroundColor3 = C.deep, BackgroundTransparency = 0.08, BorderSizePixel = 0, Position = UDim2.fromOffset(18, 16), Size = UDim2.fromOffset(268, 76) }, gui)
 corner(brand, 12); stroke(brand, C.gold, 0.55)
 local seal = make("Frame", { BackgroundColor3 = C.ink, Position = UDim2.fromOffset(13, 13), Size = UDim2.fromOffset(50, 50) }, brand); corner(seal, 25); stroke(seal, C.gold, 0, 2)
-text(seal, "П", 36, C.gold, UDim2.fromOffset(0, -2), UDim2.fromOffset(50, 50), DISPLAY).TextXAlignment = Enum.TextXAlignment.Center
+text(seal, "P", 36, C.gold, UDim2.fromOffset(0, -2), UDim2.fromOffset(50, 50), DISPLAY).TextXAlignment = Enum.TextXAlignment.Center
 text(brand, "P R O B A", 21, C.paper, UDim2.fromOffset(78, 9), UDim2.fromOffset(185, 30), BOLD)
 text(brand, "Б Ю Р О   О Ц Е Н К И", 10, C.muted, UDim2.fromOffset(79, 40), UDim2.fromOffset(180, 18), FONT)
 line(brand, 79, 63, 156, C.gold)
@@ -94,13 +107,16 @@ local objectiveText = text(objective, "Загрузка участка…", 13, 
 local queueText = text(objective, "", 11, C.muted, UDim2.fromOffset(15, 77), UDim2.fromOffset(235, 16))
 
 local dock = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), BackgroundColor3 = C.deep, BackgroundTransparency = 0.04, BorderSizePixel = 0,
-	Position = UDim2.new(0.5, 0, 1, -16), Size = UDim2.fromOffset(730, 65) }, gui)
+	Position = UDim2.new(0.5, 0, 1, -16), Size = UDim2.fromOffset(849, 65) }, gui)
 corner(dock, 13); stroke(dock, C.gold, 0.65)
 local dockScale = make("UIScale", { Scale = 1 }, dock)
-local dockItems = { {"01  Дело", "case"}, {"02  Коллекция", "inventory"}, {"03  Мастерская", "workshop"}, {"04  Профессия", "specialty"}, {"05  Титулы", "titles"}, {"?  Справка", "guide"} }
+local dockItems = { {"01  Дело", "case"}, {"02  Коллекция", "inventory"}, {"03  Мастерская", "workshop"}, {"04  Профессия", "specialty"}, {"05  Титулы", "titles"}, {"06  Декор", "decor"}, {"?  Справка", "guide"} }
 for i, entry in ipairs(dockItems) do button(dock, entry[1], 10 + (i - 1) * 119, 10, 112, 44, function() emit("Open", { panel = entry[2] }) end) end
 local homeButton = button(gui, "⌂  К своему бюро", 0, 0, 175, 37, function() emit("Return") end)
 homeButton.AnchorPoint = Vector2.new(1, 1); homeButton.Position = UDim2.new(1, -18, 1, -96)
+local muteButton
+muteButton=button(gui,"Звук: вкл",0,0,105,30,function()muted=not muted;muteButton.Text=if muted then"Звук: выкл"else"Звук: вкл";updateAudio()end)
+muteButton.AnchorPoint=Vector2.new(1,1);muteButton.Position=UDim2.new(1,-18,1,-139)
 local rosterButton = button(gui, "Оценщики  [TAB]", 0, 0, 175, 37, function() rosterVisible = not rosterVisible; renderRoster() end)
 rosterButton.AnchorPoint = Vector2.new(1, 0); rosterButton.Position = UDim2.new(1, -18, 0, 131)
 local adminButton = button(gui, "Лаборатория  [F8]", 0, 0, 175, 32, function() activePanel = "admin"; renderPanel() end, "gold")
@@ -110,12 +126,33 @@ rosterShell = make("Frame", {AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,-
 corner(rosterShell,10);stroke(rosterShell,C.gold,0.55)
 
 local toastFrame = make("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 18), Size = UDim2.fromOffset(480, 250) }, gui)
+toastFrame.ZIndex=40
 local toastLayout = make("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center }, toastFrame)
 local function toast(value, tone)
 	local frame = make("Frame", { BackgroundColor3 = C.deep, BackgroundTransparency = 0.02, BorderSizePixel = 0, Size = UDim2.fromOffset(470, 63) }, toastFrame)
 	corner(frame, 10); stroke(frame, if tone == "bad" then C.red elseif tone == "good" then C.mint else C.gold, 0.25)
 	text(frame, value, 13, C.paper, UDim2.fromOffset(17, 8), UDim2.fromOffset(436, 47))
 	task.delay(5, function() if frame.Parent then TweenService:Create(frame, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play(); task.wait(0.25); frame:Destroy() end end)
+end
+mentor=make("Frame",{AnchorPoint=Vector2.new(.5,0),Position=UDim2.new(.5,0,0,14),Size=UDim2.fromOffset(354,86),
+	BackgroundColor3=C.deep,BackgroundTransparency=.08,BorderSizePixel=0,Visible=false},gui)
+corner(mentor,10);stroke(mentor,C.gold,.5)
+mentorHeading=text(mentor,"ПЕРВЫЙ ДЕНЬ",13,C.gold,UDim2.fromOffset(12,5),UDim2.fromOffset(310,23),BOLD)
+mentorDetail=text(mentor,"",11,C.paper,UDim2.fromOffset(12,31),UDim2.fromOffset(329,46))
+button(mentor,"×",325,5,22,22,function()emit("Tutorial",{mode="skip"})end)
+mentorFocus=make("Highlight",{FillTransparency=.95,OutlineTransparency=.15,FillColor=C.gold,OutlineColor=C.gold,DepthMode=Enum.HighlightDepthMode.AlwaysOnTop,Enabled=false},workspace)
+local function renderMentor()
+	local t=data and data.tutorial
+	mentor.Visible=t~=nil and not t.done;mentorFocus.Enabled=false
+	if not t or t.done then return end
+	mentorHeading.Text=t.step.."/"..t.total.." · "..t.title;mentorDetail.Text=t.detail
+	local plot=data.plot and workspace.Plots:FindFirstChild(data.plot)
+	local building=plot and plot:FindFirstChild("Building")
+	local target
+	if t.event=="seated"then target=building and building:FindFirstChild("AppraiserSeat",true)
+	elseif t.event=="loupe"or t.event=="scale"then target=plot and plot:FindFirstChild("CurrentItem")
+	elseif t.event=="carried"then local collection=plot and plot:FindFirstChild("OwnedCollection");target=collection and collection:FindFirstChildOfClass("Model")end
+	if target then mentorFocus.Adornee=target;mentorFocus.Enabled=true end
 end
 
 window = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.fromOffset(980, 660),
@@ -129,11 +166,19 @@ pageTitle = text(header, "Рабочее дело", 32, C.paper, UDim2.fromOffse
 pageSubtitle = text(header, "", 11, C.muted, UDim2.fromOffset(26, 67), UDim2.fromOffset(820, 19))
 button(header, "×", 919, 22, 38, 38, function() window.Visible = false; activePanel = nil end)
 content = make("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(22, 109), Size = UDim2.fromOffset(936, 530) }, window)
+casePane=make("Frame",{AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,14,1,-91),Size=UDim2.fromOffset(340,550),
+	BackgroundColor3=C.deep,BackgroundTransparency=.08,BorderSizePixel=0,Visible=false},gui)
+corner(casePane,12);stroke(casePane,C.gold,.4)
+caseHeading=text(casePane,"PROBA / ЭКСПЕРТИЗА",17,C.paper,UDim2.fromOffset(14,7),UDim2.fromOffset(280,29),DISPLAY)
+button(casePane,"×",302,8,27,27,function()casePane.Visible=false;activePanel=nil end)
+caseBody=make("ScrollingFrame",{Position=UDim2.fromOffset(12,44),Size=UDim2.new(1,-24,1,-53),BackgroundTransparency=1,
+	BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=3,ScrollBarImageColor3=C.gold},casePane)
 
 local function clearContent()
 	for _, c in ipairs(connections) do c:Disconnect() end; connections = {}
 	content:ClearAllChildren(); bindings = {}; viewportModel = nil; viewportCamera = nil; quoteBox = nil; offerBox = nil; scanLabel = nil; scanBar = nil
-	animatedBadges = {}
+	caseBody:ClearAllChildren()
+	local surviving={};for _,badge in ipairs(animatedBadges)do if badge.object.Parent and badge.object:IsDescendantOf(rosterShell)then table.insert(surviving,badge)end end;animatedBadges=surviving
 end
 local function heading(title, subtitle) pageTitle.Text = title; pageSubtitle.Text = subtitle or "" end
 local function scroll(parent, x, y, w, h)
@@ -144,23 +189,28 @@ end
 local function currentCase()
 	return if data then (if caseMode == "peer" then data.peer else data.case) else nil
 end
-local function itemViewport(parent, itemId, x, y, w, h)
+local function itemViewport(parent, itemId, x, y, w, h, appearance, sourceFolder)
 	local frame = make("ViewportFrame", { BackgroundColor3 = C.deep, BorderSizePixel = 0, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
 		Ambient = Color3.fromRGB(172, 172, 153), LightColor = Color3.fromRGB(255, 237, 195), LightDirection = Vector3.new(-1, -1, -1), Active = true }, parent)
 	corner(frame, 12); stroke(frame)
 	local world = make("WorldModel", {}, frame)
-	local source = ReplicatedStorage.ItemModels:FindFirstChild(itemId)
+	local source = (sourceFolder or ReplicatedStorage.ItemModels):FindFirstChild(itemId)
 	if source then
 		viewportModel = source:Clone(); viewportModel:PivotTo(CFrame.new()); viewportModel.Parent = world
+		if appearance then Appearance.Apply(viewportModel,appearance)end
 		local cf, bounds = viewportModel:GetBoundingBox(); viewportTarget = cf.Position; viewportSize = math.max(bounds.X, bounds.Y, bounds.Z, 1.8)
 		viewportCamera = make("Camera", { FieldOfView = 37 }, frame); frame.CurrentCamera = viewportCamera
 	end
-	local dragging, lastX = false, 0
+	local dragging, lastX, lastY = false, 0, 0
 	table.insert(connections, frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; lastX = input.Position.X end
+		local record=currentCase();if record and record.challenge and (activePanel=="case" or activePanel=="peer")then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; lastX = input.Position.X;lastY=input.Position.Y end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then dragAngle += (input.Position.X - lastX) * 0.012; lastX = input.Position.X end
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			dragAngle += (input.Position.X - lastX) * 0.012;dragPitch=math.clamp(dragPitch+(input.Position.Y-lastY)*.009,-1.15,1.2)
+			lastX=input.Position.X;lastY=input.Position.Y
+		end
 	end))
 	table.insert(connections, UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end))
 	text(frame, "ПОТЯНИ, ЧТОБЫ ПОВЕРНУТЬ", 9, C.muted, UDim2.fromOffset(15, h - 29), UDim2.fromOffset(w - 30, 15), NUM)
@@ -183,64 +233,49 @@ local function packet(record)
 	return { caseId = record.id, quote = quote, auth = auth }
 end
 local function buildCase()
-	local record = currentCase()
-	heading(if caseMode == "peer" then "Независимая экспертиза" else "Рабочее дело", "Осмотри вещь → собери доказательства → выдай заключение или предложи выкуп")
-	if not record then
-		text(content, if data and data.plot then "Стол готов. Ждём посетителя." else "Ожидаем свободное бюро.", 32, C.paper, UDim2.fromOffset(40, 92), UDim2.fromOffset(800, 70), DISPLAY)
-		text(content, "Клиенты сами идут к стойке. Пока можешь выбрать специальность, осмотреть мастерскую или прогуляться по улице.\n\nДля оценки нужно находиться у собственного рабочего стола.", 17, C.muted, UDim2.fromOffset(42, 183), UDim2.fromOffset(770, 120))
-		button(content, "Выбрать специальность", 42, 335, 254, 45, function() activePanel = "specialty"; renderPanel() end, "primary")
-		button(content, "К своему бюро", 309, 335, 210, 45, function() emit("Return") end)
-		caseId = nil; return
-	end
-	if caseId ~= record.id then auth = "unknown"; caseId = record.id; dragAngle = 0 end
-	local item = record.item
-	itemViewport(content, item.id, 0, 0, 313, 310)
-	text(content, "ВЕЩЬ / " .. string.upper(item.id), 10, C.gold, UDim2.fromOffset(17, 16), UDim2.fromOffset(280, 17), NUM)
-	text(content, item.name, 27, C.paper, UDim2.fromOffset(0, 319), UDim2.fromOffset(310, 66), DISPLAY)
-	text(content, item.material .. " · " .. item.era .. "\n" .. item.condition, 12, C.muted, UDim2.fromOffset(0, 390), UDim2.fromOffset(310, 54))
-	text(content, "«" .. item.story .. "»", 12, C.paper, UDim2.fromOffset(0, 453), UDim2.fromOffset(310, 73))
-	text(content, record.customer, 15, C.paper, UDim2.fromOffset(334, 0), UDim2.fromOffset(570, 25), BOLD)
-	local patience = make("Frame", { BackgroundColor3 = C.deep, BorderSizePixel = 0, Position = UDim2.fromOffset(334, 35), Size = UDim2.fromOffset(574, 5) }, content)
-	bindings.patience = make("Frame", { BackgroundColor3 = C.mint, BorderSizePixel = 0, Size = UDim2.new(record.patience, 0, 1, 0) }, patience)
-	bindings.patienceText = text(content, if caseMode == "peer" then "Комиссия 40 монет · предмет остаётся у владельца" else "Терпение клиента · очередь продолжает двигаться", 10, C.muted, UDim2.fromOffset(334, 44), UDim2.fromOffset(570, 18))
-	for i, toolId in ipairs(Config.ToolsOrder) do
-		local done = record.tests[toolId] ~= nil
-		local owned = (data.equipment[toolId] or 0) > 0
-		local b = button(content, (if done then "✓ " elseif not owned then "◇ " else "") .. Config.Tools[toolId].name, 334 + ((i - 1) % 3) * 195, 73 + math.floor((i - 1) / 3) * 42, 185, 35,
-			function() emit("Inspect", { caseId = record.id, tool = toolId }) end, if done then "gold" else nil)
-		if not owned then b.TextColor3 = C.muted end
-	end
-	scanLabel = text(content, "", 11, C.mint, UDim2.fromOffset(334, 158), UDim2.fromOffset(574, 19), NUM)
-	scanBar = make("Frame", { BackgroundColor3 = C.mint, BorderSizePixel = 0, Position = UDim2.fromOffset(334, 180), Size = UDim2.fromOffset(0, 2) }, content)
-	local notes = scroll(content, 334, 190, 584, 133)
-	local notesText = text(notes, testNotes(record), 12, C.paper, UDim2.new(), UDim2.new(1, -14, 0, 0))
-	notesText.AutomaticSize = Enum.AutomaticSize.Y; notesText.TextYAlignment = Enum.TextYAlignment.Top
-	line(content, 334, 332, 574)
-	text(content, "Ориентир: " .. money(item.estimate.low) .. "—" .. money(item.estimate.high) .. "   ·   точность " .. item.estimate.confidence .. "%", 12, C.gold, UDim2.fromOffset(334, 339), UDim2.fromOffset(575, 25), NUM)
-	quoteBox = field(content, "Твоя оценка", 334, 373, 230)
-	local quoteSaved = bindings.quoteSaved
-	if quoteSaved then quoteBox.Text = quoteSaved end
-	text(content, "ПОДЛИННОСТЬ", 9, C.muted, UDim2.fromOffset(578, 370), UDim2.fromOffset(330, 16), BOLD)
-	local authButtons = {}
-	local function updateAuth()
-		for key, b in pairs(authButtons) do b.TextColor3 = if key == auth then C.deep else C.paper; b.BackgroundColor3 = if key == auth then C.mint else C.panel end
-	end
-	for i, entry in ipairs({ {"genuine", "Оригинал"}, {"replica", "Реплика"}, {"unknown", "Неясно"} }) do
-		authButtons[entry[1]] = button(content, entry[2], 578 + (i - 1) * 113, 391, 106, 30, function() auth = entry[1]; updateAuth() end)
-	end
-	updateAuth()
-	button(content, if caseMode == "peer" then "Выдать заключение · +40" else "Завершить оценку", 334, 438, 275, 44, function() local p = packet(record); if p then emit("Complete", p) end end, "primary")
-	if caseMode == "npc" then
-		offerBox = field(content, "Выкуп за…", 624, 438, 165)
-		button(content, "Торг", 800, 438, 110, 44, function()
-			local p = packet(record); local amount = tonumber(offerBox.Text)
-			if p and amount then p.amount = amount; emit("Offer", p) elseif p then toast("Введи сумму выкупа.", "bad") end
-		end, "gold")
-		text(content, if record.counter then "Клиент просит " .. money(record.counter) .. " · попытка " .. record.negotiations .. "/3" else "Выкуп оплачиваешь ты. После сделки предмет попадёт в коллекцию.", 10, C.muted, UDim2.fromOffset(334, 492), UDim2.fromOffset(574, 29))
-	else
-		button(content, "Отменить экспертизу", 624, 438, 285, 44, function() emit("PeerDecline", { id = record.id }) end)
-	end
-	if record.busy then scanLabel.Text = "Исследование выполняется…" end
+ local record=currentCase()
+ if not record then
+  caseHeading.Text="PROBA / ПРИЁМ"
+  text(caseBody,"Кресло занято. Ждём клиента.",21,C.paper,UDim2.fromOffset(3,20),UDim2.fromOffset(305,65),DISPLAY)
+  text(caseBody,"Гость сам подойдёт к стойке и расскажет о вещи. Пока можно бесплатно выбрать профессию.",13,C.muted,UDim2.fromOffset(3,100),UDim2.fromOffset(305,90))
+  button(caseBody,"Профессии",3,220,303,38,function()activePanel="specialty";renderPanel()end,"primary")
+  caseId=nil;return
+ end
+ if caseId~=record.id then auth="unknown";caseId=record.id;dragAngle=0;dragPitch=.42 end
+ local item=record.item
+ caseHeading.Text=item.name
+ local track=make("Frame",{BackgroundColor3=C.line,BorderSizePixel=0,Position=UDim2.fromOffset(14,37),Size=UDim2.fromOffset(312,3)},casePane)
+ bindings.patience=make("Frame",{BackgroundColor3=C.mint,BorderSizePixel=0,Size=UDim2.new(record.patience,0,1,0)},track)
+ -- Clear previous header tracks too, without touching the permanent title and close button.
+ for _,old in ipairs(casePane:GetChildren())do if old.Name=="PatienceTrack"then old:Destroy()end end;track.Name="PatienceTrack"
+ local vh=if record.challenge then 168 else math.clamp(casePane.AbsoluteSize.Y-405,88,145)
+ local view=itemViewport(caseBody,item.id,0,0,308,vh,item)
+ if record.challenge then
+  InstrumentUI.Build(view,record,{make=make,text=text,button=button,corner=corner,stroke=stroke,colors=C,emit=emit,connections=connections})
+ end
+ text(caseBody,Config.Specs[item.spec].symbol.." "..Config.Specs[item.spec].name.." · "..Rarity.Caption(item),10,C.muted,UDim2.fromOffset(0,vh+5),UDim2.fromOffset(308,27))
+ local labels={loupe="Лупа",scale="Весы",uv="УФ",spectro="Спектр",diagnostic="Механизм"}
+ for i,toolId in ipairs(Config.ToolsOrder)do
+  local done=record.tests[toolId]~=nil
+  button(caseBody,(if done then "✓ "else"")..labels[toolId],((i-1)%3)*105,vh+32+math.floor((i-1)/3)*34,98,28,function()emit("Inspect",{caseId=record.id,tool=toolId})end,if done then "gold"else nil)
+ end
+ if record.challenge then button(caseBody,"Отмена",210,vh+66,98,28,function()emit("CancelInspection",{caseId=record.id})end)end
+ local notes=scroll(caseBody,0,vh+98,308,45)
+ local notesLabel=text(notes,testNotes(record),11,C.paper,UDim2.new(),UDim2.new(1,-10,0,0));notesLabel.AutomaticSize=Enum.AutomaticSize.Y;notesLabel.TextYAlignment=Enum.TextYAlignment.Top
+ text(caseBody,"≈ "..money(item.estimate.low).."—"..money(item.estimate.high).." · "..item.estimate.confidence.."%",13,C.gold,UDim2.fromOffset(0,vh+149),UDim2.fromOffset(308,25),NUM)
+ quoteBox=field(caseBody,"Оценка",0,vh+177,308);quoteBox.Size=UDim2.fromOffset(308,34)
+ local choices={}
+ local function refreshAuth()for k,b in pairs(choices)do b.BackgroundColor3=if k==auth then C.mint else C.panel;b.TextColor3=if k==auth then C.deep else C.paper end end
+ for i,entry in ipairs({{"genuine","Оригинал"},{"replica","Реплика"},{"unknown","Неясно"}})do
+  choices[entry[1]]=button(caseBody,entry[2],(i-1)*105,vh+217,98,28,function()auth=entry[1];refreshAuth()end)
+ end;refreshAuth()
+ if caseMode=="npc" then
+  offerBox=field(caseBody,"Выкуп за…",0,vh+250,149);offerBox.Size=UDim2.fromOffset(149,34)
+  button(caseBody,"Предложить",160,vh+250,148,36,function()local p=packet(record);local amount=tonumber(offerBox.Text);if p and amount then p.amount=amount;emit("Offer",p)elseif p then toast("Введи сумму выкупа.","bad")end end,"gold")
+  text(caseBody,if record.counter then "Встречная цена — в сообщении клиента"else"Клиент ответит в облачке над головой",10,C.muted,UDim2.fromOffset(0,vh+288),UDim2.fromOffset(308,24))
+ end
+ button(caseBody,if caseMode=="peer"then"Выдать заключение · +40"else"Выдать заключение",0,vh+311,308,39,function()local p=packet(record);if p then emit("Complete",p)end end,"primary")
+ text(caseBody,record.customer,10,C.muted,UDim2.fromOffset(0,vh+354),UDim2.fromOffset(308,25))
 end
 
 local function buildWorkshop()
@@ -298,7 +333,7 @@ local function buildInventory()
 		text(content, "При оценке клиентской вещи введи предложение выкупа. Если клиент согласится, предмет станет твоим.", 16, C.muted, UDim2.fromOffset(428, 174), UDim2.fromOffset(475, 110))
 		return
 	end
-	itemViewport(content, selected.id, 418, 0, 518, 241)
+	itemViewport(content, selected.id, 418, 0, 518, 241, selected)
 	text(content, selected.name, 25, C.paper, UDim2.fromOffset(418, 252), UDim2.fromOffset(518, 42), DISPLAY)
 	text(content, selected.condition .. " · " .. selected.material, 12, C.muted, UDim2.fromOffset(418, 298), UDim2.fromOffset(518, 27))
 	local report = selected.reports[#selected.reports]
@@ -361,6 +396,30 @@ local function buildTitles()
 	end
 end
 
+local function buildDecor()
+	heading("Обстановка и оформление","Покупка один раз · установка в подготовленное место · рамка, фон и титул выбираются независимо")
+	local list=scroll(content,0,0,548,523)
+	for i,d in ipairs(Decor.List)do
+		local owned=data.ownedDecor[d.id]
+		local b=button(list,"",0,(i-1)*68,534,60,function()selectedDecor=d.id;renderPanel()end,if selectedDecor==d.id then"gold"else nil)
+		text(b,d.name,14,C.paper,UDim2.fromOffset(12,4),UDim2.fromOffset(350,25),BOLD)
+		text(b,(if owned then"В коллекции"elseif d.premium then"Премиум-косметика"else money(d.price).." монет").." · класс "..d.tier,10,C.muted,UDim2.fromOffset(12,33),UDim2.fromOffset(490,19))
+	end
+	local d=Decor.ById[selectedDecor]or Decor.List[1]
+	if d.category=="frame"or d.category=="card"then
+		local sample=make("Frame",{BackgroundColor3=Color3.fromRGB(unpack(d.color)),BorderSizePixel=0,Position=UDim2.fromOffset(575,25),Size=UDim2.fromOffset(350,150)},content)
+		corner(sample,12);stroke(sample,C.gold,.2,if d.tier>1 then 2 else 1)
+		text(sample,player.DisplayName,22,C.paper,UDim2.fromOffset(22,35),UDim2.fromOffset(306,35),BOLD)
+		text(sample,titleDefinition(data.title).name,11,C.gold,UDim2.fromOffset(22,82),UDim2.fromOffset(306,27),BOLD)
+	else itemViewport(content,d.id,568,0,368,270,nil,ReplicatedStorage.DecorModels)end
+	text(content,d.name,27,C.paper,UDim2.fromOffset(568,284),UDim2.fromOffset(368,55),DISPLAY)
+	text(content,d.description,14,C.muted,UDim2.fromOffset(568,345),UDim2.fromOffset(368,82))
+	local owned=data.ownedDecor[d.id]
+	local label=if data.equippedDecor[d.category]==d.id then"Установлено"elseif owned then"Установить"elseif d.premium then(if (Config.DecorProducts[d.id]or 0)>0 then"Купить за Robux"else"Премиум · не подключено")else"Купить и установить · "..money(d.price)
+	button(content,label,568,445,368,44,function()emit("BuyDecor",{id=d.id})end,if owned or not d.premium then"primary"else"gold")
+	if data.admin and d.premium and not owned then button(content,"Примерить в Studio",568,498,368,28,function()emit("Admin",{command="decor"})end)end
+end
+
 renderRoster = function()
 	rosterShell.Visible=rosterVisible
 	if not rosterVisible then return end
@@ -370,10 +429,30 @@ renderRoster = function()
 	for i, row in ipairs(rows) do
 		if i>6 then break end
 		local def=titleDefinition(row.title);local color=titleColors[def.style]
-		local card=make("Frame",{BackgroundColor3=C.panel,BackgroundTransparency=0.18,BorderSizePixel=0,
+		local cardDef=Decor.ById[row.card]or Decor.ById.card_paper;local frameDef=Decor.ById[row.frame]or Decor.ById.frame_plain
+		local card=make("Frame",{BackgroundColor3=Color3.fromRGB(unpack(cardDef.color)),BackgroundTransparency=0.12,BorderSizePixel=0,
 			Position=UDim2.fromOffset(8,32+(i-1)*61),Size=UDim2.fromOffset(294,54)},rosterShell);corner(card,6)
+		stroke(card,Color3.fromRGB(unpack(frameDef.color)),.25,if frameDef.tier>=2 then 1.5 else 1)
+		if frameDef.tier>=2 then
+			for _,point in ipairs({{3,3},{282,3},{3,42},{282,42}})do
+				local glyph=text(card,if row.frame=="frame_mechanical"then"⚙"else"✦",12,Color3.fromRGB(unpack(frameDef.color)),UDim2.fromOffset(point[1],point[2]),UDim2.fromOffset(10,10))
+				if row.frame=="frame_mechanical"or row.frame=="frame_astral"then table.insert(animatedBadges,{object=glyph,style="frameSpin"})end
+			end
+		end
+		if row.card=="card_starmap"then
+			for star=1,7 do local dot=make("Frame",{BackgroundColor3=C.paper,BackgroundTransparency=.6,BorderSizePixel=0,Position=UDim2.fromOffset((star*37)%280+7,(star*17)%45+4),Size=UDim2.fromOffset(2,2)},card)end
+		end
 		text(card,Config.Specs[row.specialty].symbol,24,Color3.fromRGB(unpack(Config.Specs[row.specialty].color)),UDim2.fromOffset(7,6),UDim2.fromOffset(34,38))
 		local name=text(card,row.name,14,if row.title=="trainee" then C.paper else color,UDim2.fromOffset(47,3),UDim2.fromOffset(195,24),BOLD)
+		if row.title~="trainee"then stroke(name,color,.7,.8)end
+		if row.title=="eye"or row.title=="collector"or row.title=="archivist"then
+			local glyph=text(card,if row.title=="eye"then"⌕"else"✧",14,color,UDim2.fromOffset(230,31),UDim2.fromOffset(17,17),BOLD)
+			table.insert(animatedBadges,{object=glyph,style="bob",x=230,y=31,phase=i})
+		elseif row.title=="diplomat"then
+			for dot=1,3 do local b=text(card,"•",12,color,UDim2.fromOffset(220+dot*7,32),UDim2.fromOffset(7,12));table.insert(animatedBadges,{object=b,style="bob",x=220+dot*7,y=32,phase=dot})end
+		elseif row.title=="fake"then
+			make("Frame",{BackgroundColor3=color,BackgroundTransparency=.3,BorderSizePixel=0,Position=UDim2.fromOffset(47,26),Size=UDim2.fromOffset(190,1)},card)
+		end
 		text(card,def.name,9,color,UDim2.fromOffset(47,29),UDim2.fromOffset(208,17),BOLD)
 		text(card,tostring(row.reputation),16,C.gold,UDim2.fromOffset(250,5),UDim2.fromOffset(37,24),NUM)
 		if def.style=="gold" or def.style=="violet" then
@@ -387,31 +466,33 @@ local function buildGuide()
 	heading("Путеводитель оценщика", "ПРОБА / первый рабочий день")
 	local guide = scroll(content, 0, 0, 936, 524)
 	local entries = {
-		{"01 / ТВОЁ БЮРО", "При входе сервер занимает свободный участок. Ты появляешься перед собственной лавкой. Кнопка «К своему бюро» возвращает к ней. У стойки нажми E или открой «Дело»."},
-		{"02 / ОСМОТР И ЗАКЛЮЧЕНИЕ", "Выбери профессию. Исследуй вещь доступными приборами, вращай модель мышью или пальцем, читай записи. Назови стоимость и выбери: оригинал, реплика или неясно. Ориентир — оценка твоего персонажа, он может ошибаться."},
+		{"01 / ТВОЁ БЮРО", "У тебя собственный участок. Войди в контейнер и сядь в кресло за столом: дело откроется само. B возвращает к делу сидящего оценщика. E у чужой стойки нужен только для независимой экспертизы. Все пять профессий можно менять бесплатно; опыт каждой сохраняется."},
+		{"02 / ОСМОТР И ЗАКЛЮЧЕНИЕ", "Лупой найди три метки; обнули весы и подбери противовес; УФ-лампой пройди четыре зоны; настрой призму или механизм. Вращай и наклоняй вещь мышью. Читай записи, назови стоимость и выбери оригинал, реплику или неясно. Износ и реставрация сами по себе не доказывают подделку."},
 		{"03 / ДЕНЬГИ И РЕПУТАЦИЯ", "Гонорар зависит от сложности вещи, точности, подлинности, терпения клиента и уровня бюро. Точное заключение даёт репутацию; серьёзная ошибка и ушедшие клиенты её снижают. Чем выше репутация, тем чаще гости и дороже предметы."},
 		{"04 / ОЖИДАНИЕ И ЭМОЦИИ", "Очередь и время снижают терпение. Эмодзи над гостем показывают размышление, вздох, грусть, злость, радость и смех. Слишком низкая цена раздражает. Слишком щедрый выкуп радует продавца за твой счёт."},
 		{"05 / ВЫКУП И ДРУГИЕ ИГРОКИ", "Чтобы выкупить вещь, заполни оценку, подлинность и предложение. Допускается три раунда торга. Из коллекции возьми предмет в руки, подойди к чужой стойке и нажми E. Владелец принимает запрос, исследует вещь и получает 40 монет за заключение."},
-		{"06 / ПРОДАЖА И ПРОГРЕСС", "Скупщик у южных ворот платит 72% рыночной стоимости: это ликвидность, а не гарантированная прибыль. Развивай инструменты, одну активную профессию и базу. В прототипе 100 предметов, 3 здания, 5 профессий, 5 приборов и 6 титулов."},
-		{"07 / СОХРАНЕНИЕ И ТЕСТИРОВАНИЕ", "В Studio используются отдельные тестовые данные. В опубликованной игре прогресс хранится в DataStore; при недоступности сохранения HUD явно показывает режим сеанса. F8 открывает лабораторию только тестировщикам Studio и разрешённым администраторам."},
+		{"06 / КОЛЛЕКЦИЯ И ДЕКОР", "Купленные вещи занимают настоящие полки: F берёт предмет в руки. У скупщика можно продать его за 72% рынка. В декоре 26 вариантов; вывески, картины, светильники и весы ставятся в подготовленные места. Титул у имени, рамка и фон TAB выбираются отдельно."},
+		{"07 / РЕДКОСТЬ", "Уникальность и мутация выпадают независимо. Первые +0,1% уникальности — примерно 1 к 1000; каждый следующий шаг в тысячу раз реже. Серебро, золото, призрак, рост, лёд, угли и астрал имеют разные эффекты. Обычная вещь без мутации тоже может быть дорогой."},
+		{"08 / СОХРАНЕНИЕ И ТЕСТИРОВАНИЕ", "В Studio используются отдельные тестовые данные. В опубликованной игре прогресс хранится в DataStore; при недоступности сохранения HUD явно показывает режим сеанса. F8 открывает лабораторию только тестировщикам Studio и разрешённым администраторам."},
 	}
 	for i, entry in ipairs(entries) do
 		text(guide, entry[1], 13, C.gold, UDim2.fromOffset(14, (i - 1) * 137), UDim2.fromOffset(890, 24), BOLD)
 		text(guide, entry[2], 15, C.paper, UDim2.fromOffset(14, (i - 1) * 137 + 33), UDim2.fromOffset(890, 93)).TextYAlignment = Enum.TextYAlignment.Top
 	end
+	button(guide,"Повторить обучение",14,#entries*137+8,300,40,function()emit("Tutorial",{mode="replay"});activePanel=nil;window.Visible=false end,"primary")
 end
 
 local function buildAdmin()
 	heading("Лаборатория прототипа", "Доступ проверяет сервер · команды изменяют только собственный профиль · в Studio сохранения изолированы")
 	if not data.admin then text(content, "Доступ закрыт", 28, C.red); return end
-	local commands = { {"+25 000 монет", "funds"}, {"Репутация 75", "reputation"}, {"Все приборы III", "tools"}, {"Следующая база 1→2→3", "base"}, {"Сменить настроение гостя", "emotions"}, {"Открыть все титулы", "titles"} }
+	local commands = { {"+25 000 монет", "funds"}, {"Репутация 75", "reputation"}, {"Все приборы III", "tools"}, {"Следующая база 1→2→3", "base"}, {"Сменить настроение гостя", "emotions"}, {"Открыть все титулы", "titles"}, {"Следующая мутация", "mutation"}, {"Уникальность 0→0.1→1→10→100%", "unique"}, {"Открыть весь декор", "decor"} }
 	for i, entry in ipairs(commands) do button(content, entry[1], ((i - 1) % 3) * 313, math.floor((i - 1) / 3) * 52, 299, 42, function() emit("Admin", { command = entry[2] }) end, "gold") end
-	text(content, "КАТАЛОГ / ВСЕ 100 ПРЕДМЕТОВ", 12, C.gold, UDim2.fromOffset(0, 118), UDim2.fromOffset(900, 25), BOLD)
-	local list = scroll(content, 0, 153, 551, 370)
+	text(content, "КАТАЛОГ / ВСЕ 100 ПРЕДМЕТОВ", 12, C.gold, UDim2.fromOffset(0, 157), UDim2.fromOffset(900, 25), BOLD)
+	local list = scroll(content, 0, 190, 551, 333)
 	for i, def in ipairs(catalog) do
 		button(list, def.id .. " · " .. def.name, 0, (i - 1) * 38, 537, 32, function() adminId = def.id; renderPanel() end, if adminId == def.id then "gold" else nil)
 	end
-	itemViewport(content, adminId, 571, 153, 365, 219)
+	itemViewport(content, adminId, 571, 190, 365, 182,if data.case and data.case.item.id==adminId then data.case.item else nil)
 	button(content, "Клиент с этой вещью", 571, 389, 365, 44, function() emit("Admin", { command = "spawn", id = adminId }) end, "primary")
 	button(content, "Добавить в коллекцию", 571, 447, 365, 44, function() emit("Admin", { command = "item", id = adminId }) end)
 end
@@ -420,15 +501,22 @@ renderPanel = function(preserve)
 	if not activePanel then return end
 	if not data and activePanel ~= "guide" then toast("Загружаем профиль и участок…"); return end
 	local oldQuote = quoteBox and quoteBox.Text; local oldOffer = offerBox and offerBox.Text; local oldCase = caseId
-	clearContent(); window.Visible = true
+	local focused=UserInputService:GetFocusedTextBox();local focusKind=if focused and focused==quoteBox then "quote"elseif focused and focused==offerBox then "offer"else nil
+	local cursor=focused and focused.CursorPosition
+	clearContent(); window.Visible = activePanel~="case" and activePanel~="peer";casePane.Visible=not window.Visible
 	if activePanel == "case" or activePanel == "peer" then
 		caseMode = if activePanel == "peer" then "peer" else "npc"
 		buildCase()
 		if preserve and caseId == oldCase then if quoteBox and oldQuote then quoteBox.Text = oldQuote end; if offerBox and oldOffer then offerBox.Text = oldOffer end end
+		if preserve and caseId==oldCase and focusKind then
+			local box=if focusKind=="quote"then quoteBox else offerBox
+			if box then task.defer(function()if box.Parent then box:CaptureFocus();if cursor then box.CursorPosition=math.clamp(cursor,-1,#box.Text+1)end end end)end
+		end
 	elseif activePanel == "workshop" then buildWorkshop()
 	elseif activePanel == "specialty" then buildSpecialty()
 	elseif activePanel == "inventory" then buildInventory()
 	elseif activePanel == "titles" then buildTitles()
+	elseif activePanel == "decor"then buildDecor()
 	elseif activePanel == "roster" then renderRoster()
 	elseif activePanel == "admin" then buildAdmin()
 	elseif activePanel == "guide" then buildGuide() end
@@ -443,11 +531,13 @@ button(pendingFrame, "Отклонить", 190, 113, 123, 35, function() if data
 
 renderHUD = function()
 	if not data then return end
+	renderMentor()
 	walletValue.Text = money(data.cash) .. "  ¤"
 	repText.Text = "Репутация " .. data.reputation .. " / 100   ·   " .. Config.Specs[data.specialty].name
 	TweenService:Create(repFill, TweenInfo.new(0.3), { Size = UDim2.new(data.reputation / 100, 0, 1, 0) }):Play()
 	saveText.Text = if data.saveMode == "studio" then "STUDIO / тестовый профиль" elseif data.saveMode == "cloud" then "ОБЛАКО / автосохранение" elseif data.saveMode == "session" then "СЕАНС / без облачного сохранения" else "Загрузка…"
 	saveText.TextColor3 = if data.saveMode == "session" then C.red else C.muted
+	objective.Visible=workspace.CurrentCamera.ViewportSize.X>=760 and not data.seated
 	objectiveText.Text = if data.case then "У стойки: " .. data.case.item.name else "Гости скоро подойдут.\nЗайми место за рабочим столом."
 	queueText.Text = "Очередь " .. data.queue .. "/" .. data.capacity .. "   ·   " .. Config.BaseLevels[data.baseLevel].name
 	adminButton.Visible = data.admin
@@ -490,6 +580,10 @@ State.OnClientEvent:Connect(function(packet)
 	elseif packet.kind == "catalog" then catalog = packet.items
 	elseif packet.kind == "roster" then rows = packet.rows; if rosterVisible then renderRoster() end
 	elseif packet.kind == "leaveDesk" then if activePanel=="case" or activePanel=="peer" then activePanel=nil;window.Visible=false end
+		casePane.Visible=false
+	elseif packet.kind=="challengeUpdate" and data then
+		local record=if data.peer and data.peer.id==packet.caseId then data.peer else data.case
+		if record and record.id==packet.caseId then record.challenge=packet.challenge;record.busy=true;if activePanel=="case" or activePanel=="peer" then renderPanel(true)end end
 	elseif packet.kind == "receipt" or packet.kind == "report" then receiptCard(packet)
 	elseif packet.kind == "scan" then
 		scanUntil = os.clock() + packet.seconds
@@ -504,7 +598,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		rosterVisible = not rosterVisible; renderRoster()
 	elseif input.KeyCode == Enum.KeyCode.F8 and data and data.admin then activePanel = "admin"; renderPanel()
 	elseif input.KeyCode == Enum.KeyCode.B then emit("Open", { panel = "case" })
-	elseif input.KeyCode == Enum.KeyCode.Escape and activePanel then activePanel = nil; window.Visible = false end
+	elseif input.KeyCode == Enum.KeyCode.Escape and activePanel then activePanel = nil; window.Visible = false;casePane.Visible=false end
 end)
 
 local function resize()
@@ -512,9 +606,10 @@ local function resize()
 	if not camera then return end
 	local size = camera.ViewportSize
 	windowScale.Scale = math.clamp(math.min((size.X - 22) / 980, (size.Y - 112) / 660), 0.25, 1)
-	dockScale.Scale = math.clamp((size.X - 20) / 730, 0.25, 1)
+	dockScale.Scale = math.clamp((size.X - 20) / 849, 0.25, 1)
 	local compact = size.X < 760
-	brand.Visible = not compact; objective.Visible = not compact
+	casePane.Size=UDim2.fromOffset(math.max(280,math.min(340,size.X-28)),math.clamp(if compact then size.Y*.48 else size.Y-190,180,550))
+	brand.Visible = not compact; objective.Visible = not compact and not (data and data.seated)
 	wallet.Size = UDim2.fromOffset(if compact then 224 else 268, 102)
 	toastFrame.Size = UDim2.fromOffset(math.min(480, size.X - 20), 250)
 	local toastScale = toastFrame:FindFirstChildOfClass("UIScale") or make("UIScale", {}, toastFrame)
@@ -527,19 +622,22 @@ end
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() resize(); if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end end)
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
 RunService.RenderStepped:Connect(function(dt)
-	for _,badge in ipairs(animatedBadges) do
+	for i=#animatedBadges,1,-1 do
+		local badge=animatedBadges[i]
+		if not badge.object.Parent then table.remove(animatedBadges,i);continue end
 		if badge.object.Parent and (window.Visible or rosterVisible) then
-			if badge.style=="gold" then badge.object.Rotation=(badge.object.Rotation+dt*9)%360 end
-			badge.gradient.Offset=Vector2.new(math.sin(os.clock()*.5)*.16,0)
+			if badge.style=="gold"or badge.style=="frameSpin"then badge.object.Rotation=(badge.object.Rotation+dt*18)%360 end
+			if badge.style=="bob"then badge.object.Position=UDim2.fromOffset(badge.x,badge.y+math.sin(os.clock()*2+(badge.phase or 0))*1.6)end
+			if badge.gradient then badge.gradient.Offset=Vector2.new(math.sin(os.clock()*.5)*.16,0)end
 		end
 	end
-	if viewportModel and viewportModel.Parent and viewportCamera and window.Visible then
+	if viewportModel and viewportModel.Parent and viewportCamera and (window.Visible or casePane.Visible) then
 		dragAngle += dt * 0.10
 		local target = viewportTarget
 		local radius = viewportSize * 1.9
-		viewportCamera.CFrame = CFrame.lookAt(target + Vector3.new(math.sin(dragAngle) * radius, viewportSize * 0.85, math.cos(dragAngle) * radius), target)
+		viewportCamera.CFrame = CFrame.lookAt(target + Vector3.new(math.sin(dragAngle)*math.cos(dragPitch)*radius,math.sin(dragPitch)*radius,math.cos(dragAngle)*math.cos(dragPitch)*radius), target)
 	end
 end)
 resize(); emit("Hello")
 task.delay(4, function() if not data then emit("Hello") end end)
-task.delay(8, function() if data and data.stats.served == 0 then toast("Первый день: выбери профессию, затем подойди к стойке своего бюро. E — взаимодействие, B — дело.") end end)
+task.delay(8, function() if data and data.stats.served == 0 then toast("Первый день: выбери профессию и сядь за свою стойку. Рабочее дело откроется само.") end end)

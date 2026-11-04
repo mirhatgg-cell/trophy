@@ -85,7 +85,8 @@ function methods:SetNetworkOwner() end
 local gameMock=node("DataModel","game")
 gameMock.JobId="test";gameMock.CreatorId=99999;gameMock.CreatorType=enum.CreatorType.User
 local services={}
-for _,name in ipairs({"Players","ReplicatedStorage","ServerStorage","ServerScriptService","Workspace","DataStoreService","HttpService","RunService","TweenService","PhysicsService"}) do services[name]=node(name,name,gameMock) end
+for _,name in ipairs({"Players","ReplicatedStorage","ServerStorage","ServerScriptService","Workspace","DataStoreService","HttpService","RunService","TweenService","PhysicsService","SoundService","Debris","MarketplaceService","CollectionService"}) do services[name]=node(name,name,gameMock) end
+services.CollectionService.AddTag=function()end
 function gameMock:GetService(name) return assert(services[name],"Unexpected service "..name) end
 function gameMock:BindToClose(fn) self.close=fn end
 services.RunService.IsStudio=function()return studio end
@@ -111,6 +112,7 @@ services.PhysicsService.CollisionGroupSetCollidable=function()end
 local players=services.Players
 players.PlayerAdded=signal();players.PlayerRemoving=signal()
 function players:GetPlayers()return self:GetChildren()end
+function players:GetPlayerByUserId(id)for _,p in ipairs(self:GetChildren())do if p.UserId==id then return p end end;return nil end
 function players:GetFriendsAsync()error("Avatar API unavailable in unit test")end
 local rep=services.ReplicatedStorage
 local shared=node("Folder","Shared",rep)
@@ -132,7 +134,7 @@ local delayed={}
 local taskMock={spawn=function()end,wait=function()error("Unexpected yielding path in synchronous server-flow test")end,
 	delay=function(seconds,fn)table.insert(delayed,{due=clock+seconds,fn=fn})end}
 local env=setmetatable({game=gameMock,workspace=ws,Vector3=Vector,CFrame=CF,Enum=enum,
-	Instance={new=function(cls)return node(cls,cls)end},Random={new=function()return {NextInteger=function(_,a)return a end,NextNumber=function(_,a,b)return if a then (a+b)/2 else .5 end}end},
+	Instance={new=function(cls)return node(cls,cls)end},Random={new=function()return {seed=12345,NextInteger=function(self,a,b)self.seed=(self.seed*48271)%2147483647;return a+self.seed%(b-a+1) end,NextNumber=function(_,a,b)return if a then (a+b)/2 else .5 end}end},
 	task=taskMock,Color3={fromRGB=function(r,g,b)return {r=r,g=g,b=b}end},TweenInfo={new=function()return {}end},
 	UDim2={fromOffset=function()return {}end,new=function()return {}end},os=setmetatable({clock=function()return clock end},{__index=os}),warn=function(...) print("test warning:",...)end}, {__index=getfenv()})
 local modules,cache={},{}

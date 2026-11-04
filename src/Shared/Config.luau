@@ -5,6 +5,9 @@ Config.Version = "0.2.0"
 Config.ProfessionIconAtlas = 0 -- Upload assets/icons/professions.png and set its genuine Roblox image ID.
 Config.ProfessionIconCell = { width = 0, height = 0 } -- Filled from the generated atlas manifest.
 Config.ProfessionIconRects = {{47,172,335,392}, {449,200,369,361}, {876,173,375,398}, {1303,187,385,378}, {1747,185,378,372}} -- Optional exact source rectangles from assets/manifest.json.
+Config.ArtTextures = { porcelain = 0, walnut = 0, steel = 0, paper = 0 } -- Real uploaded image IDs; see assets/manifest.json.
+Config.Audio = { doorSlide = 0, glassLatch = 0, ceramic = 0, coin = 0, paper = 0, stamp = 0 }
+Config.DecorProducts = { banner_astral = 0, lamp_orbit = 0, frame_astral = 0 } -- Real Developer Product IDs; zero disables Robux purchases.
 Config.QueueSlots = { {0,-1}, {-8,-5}, {-14,-5}, {8,-5}, {14,-5} }
 Config.StartingCash = 750
 Config.InventoryLimit = 40

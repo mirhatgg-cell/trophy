@@ -48,5 +48,71 @@
     ],
     "roblox_asset_id": 0,
     "status": "generated; upload to Roblox required"
+  },
+  "walnut": {
+    "file": "textures/walnut.png",
+    "size": [
+      1254,
+      1254
+    ],
+    "config_key": "ArtTextures.walnut",
+    "roblox_asset_id": 0,
+    "status": "generated; upload to Roblox required"
+  },
+  "brushed_steel": {
+    "file": "textures/brushed-steel.png",
+    "size": [
+      1254,
+      1254
+    ],
+    "config_key": "ArtTextures.steel",
+    "roblox_asset_id": 0,
+    "status": "generated; upload to Roblox required"
+  },
+  "rag_paper": {
+    "file": "textures/rag-paper.png",
+    "size": [
+      1254,
+      1254
+    ],
+    "config_key": "ArtTextures.paper",
+    "roblox_asset_id": 0,
+    "status": "generated; upload to Roblox required"
+  },
+  "audio_doorSlide": {
+    "file": "audio/door-slide.wav",
+    "config_key": "Audio.doorSlide",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
+  },
+  "audio_glassLatch": {
+    "file": "audio/glass-latch.wav",
+    "config_key": "Audio.glassLatch",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
+  },
+  "audio_ceramic": {
+    "file": "audio/ceramic-touch.wav",
+    "config_key": "Audio.ceramic",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
+  },
+  "audio_coin": {
+    "file": "audio/coin-clink.wav",
+    "config_key": "Audio.coin",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
+  },
+  "audio_paper": {
+    "file": "audio/paper-rustle.wav",
+    "config_key": "Audio.paper",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
+  },
+  "audio_stamp": {
+    "file": "audio/receipt-stamp.wav",
+    "config_key": "Audio.stamp",
+    "roblox_asset_id": 0,
+    "status": "original synthesized Foley; upload to Roblox required; builtin fallback active"
   }
 }

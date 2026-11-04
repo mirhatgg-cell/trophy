@@ -42,4 +42,8 @@ for _, spec in ipairs(Config.SpecOrder) do expect(disciplines[spec] == 20, "Each
 expect(not Domain.finite(0/0) and not Domain.finite(math.huge) and not Domain.finite("500"), "Remote numeric validation rejects NaN, infinity and strings")
 expect(Domain.specLevel(0) == 1 and Domain.specLevel(2430) == 10, "Qualification must span ten achievable levels")
 expect(Config.BaseLevels[2].capacity > Config.BaseLevels[1].capacity and Config.BaseLevels[3].fee > Config.BaseLevels[2].fee, "Construction upgrades must change service capacity and income")
+local intact={seed=17,genuine=true,condition=.95,demand=1,repair=false}
+local restored=table.clone(intact);restored.repair=true
+expect(Domain.trueValue({value=1000},restored)<Domain.trueValue({value=1000},intact),"A visible documented restoration must reduce market value without making an original counterfeit")
+expect(Domain.test(profile("Everyday",2430,3),Catalog[1],restored,"uv").text:find("реставрация")~=nil,"UV findings must agree with the saved visible repair")
 print("PASS economy/catalogue:", assertions, "assertions")

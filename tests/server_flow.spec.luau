@@ -46,9 +46,18 @@ expect(pA.cash==before,"A stale or invented case ID must not create currency")
 action(alice,"Inspect",{caseId=r.id,tool="spectro"})
 expect(r.tests.spectro==nil,"A client cannot use equipment that has not been purchased")
 action(alice,"Inspect",{caseId=r.id,tool="scale"})
-expect(r.busy~=nil and r.tests.scale==nil,"Instrument research must take time")
-clock+=3
-for _,job in ipairs(delayed)do if job.due<=clock then job.fn() end end;delayed={}
+expect(r.busy~=nil and r.tests.scale==nil,"Instrument research must require an active task")
+local public=latest(alice,"snapshot").case.item
+expect(public.seed==nil and public.genuine==nil and public.surfaceTone~=nil and type(public.repair)=="boolean","Visible condition must be shared without revealing the economic seed or authenticity")
+local challenge=r.busy
+action(alice,"ChallengeStep",{caseId=r.id,id=challenge.id,action="finish"})
+expect(r.tests.scale==nil,"Waiting alone must never complete a research task")
+action(alice,"ChallengeStep",{caseId=r.id,id=challenge.id,action="tare"})
+while challenge.amount<challenge.target do
+	local d=challenge.target-challenge.amount
+	action(alice,"ChallengeStep",{caseId=r.id,id=challenge.id,action="weight",value=if d>=20 then 20 elseif d>=5 then 5 else 1})
+end
+if r.busy then action(alice,"ChallengeStep",{caseId=r.id,id=challenge.id,action="finish"})end
 expect(r.tests.scale and r.busy==nil,"A completed instrument run must add evidence to the same active case")
 local value=Domain.trueValue(def,r.item)
 action(alice,"Complete",{caseId=r.id,quote=value,auth="genuine"})
@@ -89,6 +98,13 @@ expect(pA.cash==before,"An ordinary production player must not execute Studio ad
 studio=true
 action(alice,"Admin",{command="funds"});action(alice,"Admin",{command="reputation"})
 desk(alice,plotA)
+before=pA.cash
+action(alice,"BuyDecor",{id="frame_brass"})
+expect(pA.ownedDecor.frame_brass and pA.equippedDecor.frame=="frame_brass" and pA.cash==before-650,"A decoration purchase must debit its server price and equip an independent frame")
+action(alice,"BuyDecor",{id="frame_brass"})
+expect(pA.cash==before-650,"Already owned decor must be equippable without buying it again")
+action(alice,"BuyDecor",{id="lamp_orbit"})
+expect(not pA.ownedDecor.lamp_orbit,"An unconfigured premium product must never pretend that a Robux purchase succeeded")
 action(alice,"UpgradeBase")
 expect(pA.baseLevel==2 and plotA:FindFirstChild("Building")~=nil,"A paid upgrade must replace the occupied plot with a valid next-stage building")
 desk(alice,plotA)
@@ -118,11 +134,21 @@ local locked=makePlayer("Locked",789)
 expect(Profiles.sessions[locked].mode=="session" and fakeStore.records.u_789.cash==99999,"An active foreign session must fall back without overwriting persistent data")
 Profiles.loaded[locked].cash=1;Profiles.Save(locked,false)
 expect(fakeStore.records.u_789.cash==99999,"Session-only profiles must never save over a foreign lock")
-fakeStore.records.u_790={cash=1287,lock={id="expired-server",expires=os.time()-1}}
+fakeStore.records.u_790={cash=1287,lock={id="expired-server",expires=os.time()-1},inventory={{id="h01",uid="retained",seed=17,condition=.8,demand=1,genuine=true,visualSeed=55,surfaceTone=.07,repair=true,mutation="ghost",uniqueness=.1,paid=7,story="Это семейная вещь."}}}
 local recovered=makePlayer("Recovered",790)
 expect(Profiles.sessions[recovered].mode=="cloud" and Profiles.loaded[recovered].cash==1287,"An expired lock must preserve and recover the stored profile")
+expect(Profiles.loaded[recovered].inventory[1].mutation=="ghost"and Profiles.loaded[recovered].inventory[1].uniqueness==.1,"Mutation and uniqueness must survive profile loading unchanged")
+expect(Profiles.loaded[recovered].inventory[1].surfaceTone==.07 and Profiles.loaded[recovered].inventory[1].repair==true,"Visible surface characteristics must remain stable after loading")
 Profiles.loaded[recovered].cash=1350
 expect(Profiles.Save(recovered,false) and fakeStore.records.u_790.cash==1350,"Autosave must write the authoritative profile while retaining its own lock")
+Config.DecorProducts.lamp_orbit=12345
+local receipt={PlayerId=790,ProductId=12345,PurchaseId="receipt_one"}
+local decision=services.MarketplaceService.ProcessReceipt(receipt)
+expect(decision==enum.ProductPurchaseDecision.PurchaseGranted and Profiles.loaded[recovered].ownedDecor.lamp_orbit,"A verified product receipt must grant and save its premium entitlement")
+local balance=Profiles.loaded[recovered].cash
+services.MarketplaceService.ProcessReceipt(receipt)
+expect(Profiles.loaded[recovered].cash==balance,"Retrying the same receipt must not grant compensation or charge twice")
+Config.DecorProducts.lamp_orbit=0
 expect(Profiles.Save(recovered,true) and fakeStore.records.u_790.lock==nil,"Shutdown save must release its persistent session lease")
 fakeStore.fail=true
 local offline=makePlayer("Offline",791)

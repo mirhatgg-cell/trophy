@@ -8,6 +8,16 @@ local PhysicsService = game:GetService("PhysicsService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Domain = require(ReplicatedStorage.Shared.Domain)
+local Challenges = require(ReplicatedStorage.Shared.Challenges)
+local Appearance = require(ReplicatedStorage.Shared.Appearance)
+local Rarity = require(ReplicatedStorage.Shared.Rarity)
+local Audio = require(script.Parent.Audio)
+Audio.Init()
+local Decor=require(ReplicatedStorage.Shared.Decor)
+local Decorations=require(script.Parent.Decorations)
+local Commerce=require(script.Parent.Commerce)
+local Tutorial=require(ReplicatedStorage.Shared.Tutorial)
+local Workstation=require(script.Parent.Workstation)
 local Catalog = require(script.Parent.Catalog)
 local Profiles = require(script.Parent.Profiles)
 local Customers = require(script.Parent.Customers)
@@ -16,7 +26,11 @@ local index = {}
 for _, def in ipairs(Catalog) do index[def.id] = def end
 
 local sessions, plots, requests, doors, buckets = {}, {}, {}, {}, {}
-local sendSnapshot, updateDisplay, rebuild, roster
+local sendSnapshot, updateDisplay, rebuild, roster, syncCollection
+local function applyDecor(player)
+	local s,p=sessions[player],Profiles.loaded[player]
+	if s and s.plot and p then Decorations.Apply(s.plot,p)end
+end
 local function message(player, text, tone)
 	if player.Parent then State:FireClient(player, { kind = "toast", text = text, tone = tone or "info" }) end
 end
@@ -41,6 +55,12 @@ local function working(player, session)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	return seat ~= nil and humanoid ~= nil and seat.Occupant == humanoid
 end
+local function unseat(player)
+	local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	local seat=humanoid.SeatPart;humanoid.Sit=false
+	local weld=seat and seat:FindFirstChild("SeatWeld");if weld then weld:Destroy()end
+end
 local function availableCash(player)
 	local p = Profiles.loaded[player]
 	if not p then return 0 end
@@ -63,6 +83,8 @@ local function publicItem(player, item, tests)
 	local def = index[item.id]
 	local low, high, confidence = Domain.estimate(Profiles.loaded[player], def, item, tests or {})
 	return { id = item.id, uid = item.uid, name = def.name, spec = def.spec, material = def.material, era = def.era,
+		conditionScore=item.condition,visualSeed=item.visualSeed or 1,mutation=item.mutation or "none",uniqueness=item.uniqueness or 0,
+		surfaceTone=item.surfaceTone or 0,repair=if type(item.repair)=="boolean"then item.repair else item.condition<.65,
 		story = item.story or def.story, condition = conditionText(item.condition), estimate = { low = low, high = high, confidence = confidence },
 		reports = item.reports or {}, paid = item.paid or 0 }
 end
@@ -71,7 +93,8 @@ local function casePacket(player, record)
 	local tests = {}
 	for key, result in pairs(record.tests) do tests[key] = { text = result.text, relevant = result.relevant } end
 	return { id = record.id, item = publicItem(player, record.item, record.tests), customer = record.name,
-		patience = record.patience, mood = record.mood, tests = tests, negotiations = record.negotiations, counter = record.counter, busy = record.busy ~= nil }
+		patience = record.patience, mood = record.mood, tests = tests, negotiations = record.negotiations, counter = record.counter, busy = record.busy ~= nil,
+		challenge = record.busy and Challenges.Public(record.busy) }
 end
 
 sendSnapshot = function(player)
@@ -91,6 +114,7 @@ sendSnapshot = function(player)
 	end
 	State:FireClient(player, { kind = "snapshot", cash = p.cash, available = availableCash(player), reputation = p.reputation,
 		baseLevel = p.baseLevel, specialty = p.specialty, specXP = p.specXP, equipment = p.equipment, stats = p.stats,
+		ownedDecor=p.ownedDecor,equippedDecor=p.equippedDecor,tutorial=Tutorial.State(p),
 		title = p.title, unlocked = Domain.unlockedTitles(p), seenCount = #p.seen, inventory = inv, heldUid = s.heldUid,
 		plot = if s.plot then s.plot.Name else nil, saveMode = s.saveMode, queue = if customerSession then #customerSession.queue else 0,
 		capacity = Config.BaseLevels[p.baseLevel].capacity, seated = working(player,s), case = casePacket(player, Customers.Active(player)), pending = pending, peer = peer, admin = isAdmin(player) })
@@ -101,6 +125,7 @@ roster = function()
 	for player, s in pairs(sessions) do
 		local p = Profiles.loaded[player]
 		if p then table.insert(rows, { userId = player.UserId, name = player.DisplayName, username = player.Name, title = p.title,
+			frame=p.equippedDecor.frame or "frame_plain",card=p.equippedDecor.card or "card_paper",
 			reputation = p.reputation, specialty = p.specialty, level = Domain.specLevel(p.specXP[p.specialty]), plot = if s.plot then s.plot.Name else "Ожидает участок" }) end
 	end
 	table.sort(rows, function(a, b) return a.reputation > b.reputation end)
@@ -123,6 +148,7 @@ local function carry(player, item)
 	local handle = Instance.new("Part"); handle.Name = "Handle"; handle.Size = Vector3.new(0.25, 0.25, 0.25); handle.Transparency = 1
 	handle.CanCollide = false; handle.CanTouch = false; handle.Massless = true; handle.Parent = tool
 	model:PivotTo(CFrame.new(0, 0.2, 0))
+	Appearance.Apply(model,item)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false; part.CanCollide = false; part.CanTouch = false; part.Massless = true
@@ -135,17 +161,59 @@ local function carry(player, item)
 	local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then humanoid:EquipTool(tool) end
 	sessions[player].heldUid = item.uid
+	Tutorial.Mark(Profiles.loaded[player],"carried")
+	if tool.Equipped then tool.Equipped:Connect(function()if sessions[player]then sessions[player].heldUid=item.uid;syncCollection(player)end end)end
+	if tool.Unequipped then tool.Unequipped:Connect(function()if sessions[player]and sessions[player].heldUid==item.uid then sessions[player].heldUid=nil;syncCollection(player)end end)end
+	syncCollection(player)
 end
 
-updateDisplay = function(player)
+syncCollection=function(player)
+	local s,p=sessions[player],Profiles.loaded[player]
+	if not s or not p or not s.plot then return end
+	local building=s.plot:FindFirstChild("Building");if not building then return end
+	local slots={}
+	for _,part in ipairs(building:GetDescendants())do if part:IsA("BasePart")and part.Name:match("^CollectionSlot_%d+$")then table.insert(slots,part)end end
+	table.sort(slots,function(a,b)return a.Name<b.Name end)
+	local folder=s.plot:FindFirstChild("OwnedCollection")
+	if not folder then folder=Instance.new("Folder");folder.Name="OwnedCollection";folder.Parent=s.plot end
+	local kept={}
+	for i,item in ipairs(p.inventory)do
+		local slot=slots[i]
+		if not slot or s.heldUid==item.uid then continue end
+		local name="Owned_"..item.uid
+		local key=table.concat({p.baseLevel,slot.Name,item.id,item.mutation or "none",item.uniqueness or 0,item.visualSeed or 1,item.condition,item.surfaceTone or 0,tostring(item.repair)},"|")
+		kept[name]=true
+		local previous=folder:FindFirstChild(name)
+		if previous and previous:GetAttribute("VisualKey")==key then continue end
+		if previous then previous:Destroy()end
+		local model=ReplicatedStorage.ItemModels[item.id]:Clone();model.Name=name;model:SetAttribute("VisualKey",key)
+		model:ScaleTo(.30);model:PivotTo(slot.CFrame);Appearance.Apply(model,item);model.Parent=folder
+		local interaction=Instance.new("ProximityPrompt");interaction.Name="CollectionPickup";interaction.ActionText="Взять в руки"
+		interaction.ObjectText=index[item.id].name.." · "..Rarity.Caption(item);interaction.RequiresLineOfSight=false
+		interaction.MaxActivationDistance=12;interaction.KeyboardKeyCode=Enum.KeyCode.F;interaction.HoldDuration=.2;interaction.Parent=model.PrimaryPart
+		interaction.Triggered:Connect(function(visitor)
+			if visitor~=player or not Profiles.loaded[player]or not near(player,slot.Position,14)then return end
+			local owned=inventoryItem(Profiles.loaded[player],item.uid)
+			if owned then carry(player,owned);sendSnapshot(player)end
+		end)
+	end
+	for _,model in ipairs(folder:GetChildren())do if not kept[model.Name]then model:Destroy()end end
+end
+
+updateDisplay = function(player,force)
 	local s = sessions[player]
 	if not s or not s.plot then return end
-	local old = s.plot:FindFirstChild("CurrentItem"); if old then old:Destroy() end
+	local old = s.plot:FindFirstChild("CurrentItem")
 	local record = Customers.Active(player)
 	for _, request in pairs(requests) do if request.appraiser == player and request.accepted then record = request; break end end
+	if old and record and old:GetAttribute("CaseId")==record.id and not force then return end
+	Workstation.Stop(player)
+	if old then old:Destroy()end
 	if not record then return end
 	local model = ReplicatedStorage.ItemModels[record.item.id]:Clone(); model.Name = "CurrentItem"; model:ScaleTo(0.8)
 	model:PivotTo(s.plot.Anchor.CFrame * CFrame.new(0, 5.05, 4))
+	Appearance.Apply(model,record.item)
+	model:SetAttribute("CaseId",record.id)
 	for _, part in ipairs(model:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false; part.CanTouch = false end end
 	model.Parent = s.plot
 end
@@ -221,6 +289,12 @@ rebuild = function(player)
 		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 			local occupant = seat.Occupant
 			if occupant and occupant.Parent ~= player.Character then occupant.Sit = false; return end
+			if occupant and Profiles.loaded[player]then Tutorial.Mark(Profiles.loaded[player],"seated")end
+			if not occupant then
+				Workstation.Stop(player)
+				local record=Customers.Active(player);if record then record.busy=nil end
+				for _,request in pairs(requests)do if request.appraiser==player then request.busy=nil end end
+			end
 			sendSnapshot(player)
 			if occupant then open(player,"case") else State:FireClient(player,{kind="leaveDesk"}) end
 		end)
@@ -232,7 +306,7 @@ rebuild = function(player)
 			doors[door] = { left = door.Left.CFrame, right = door.Right.CFrame, open = false, tweening = false }
 		end
 	end
-	applyEquipment(player); updateDisplay(player)
+	applyEquipment(player); updateDisplay(player);syncCollection(player);applyDecor(player)
 end
 
 local function registerSeen(profile, id)
@@ -245,14 +319,19 @@ local function reward(player, record, quote, auth, purchase)
 	p.cash = Domain.money(p.cash + outcome.fee - (purchase or 0))
 	p.reputation = math.clamp(p.reputation + outcome.rep, 0, 100)
 	p.stats.served += 1
+	Tutorial.Mark(p,"verdict")
 	if outcome.good then p.stats.good += 1 end
 	if outcome.correctAuth and not record.item.genuine then p.stats.fakes += 1 end
 	p.specXP[def.spec] += if outcome.good then 16 else 7
 	registerSeen(p, def.id)
 	if purchase then
+		Tutorial.Mark(p,"bought")
 		record.item.paid = purchase; table.insert(p.inventory, record.item); p.stats.purchases += 1
 		if def.value >= 3000 then p.stats.rare += 1 end
 	end
+	if purchase then syncCollection(player)end
+	local display=sessions[player].plot and sessions[player].plot:FindFirstChild("CurrentItem")
+	if display then Audio.Play(display.PrimaryPart,if purchase then "coin"else "stamp")end
 	Customers.Finish(player, if purchase and purchase > outcome.value * 1.15 then "laugh" else outcome.mood)
 	State:FireClient(player, { kind = "receipt", name = def.name, value = outcome.value, quote = quote, genuine = record.item.genuine,
 		fee = outcome.fee, rep = outcome.rep, error = math.floor(outcome.error * 100), good = outcome.good, bought = purchase })
@@ -288,6 +367,7 @@ local function completePeer(player, record, data)
 	table.insert(item.reports, { by = player.DisplayName, quote = Domain.money(data.quote), auth = data.auth, at = os.time() })
 	if #item.reports > 3 then table.remove(item.reports, 1) end
 	requests[record.id] = nil
+	Tutorial.Mark(p,"peer");Tutorial.Mark(ownerProfile,"peer")
 	State:FireClient(visitor, { kind = "report", name = def.name, by = player.DisplayName, quote = Domain.money(data.quote), auth = data.auth, fee = Config.PeerFee })
 	message(player, "Заключение выдано. +40 монет за независимую экспертизу.", "good")
 	updateDisplay(player); sendSnapshot(player); sendSnapshot(visitor); roster()
@@ -302,7 +382,7 @@ handlers.Hello = function(player)
 end
 handlers.Open = function(player, data)
 	local panel = if type(data) == "table" then data.panel else "case"
-	if panel == "case" or panel == "workshop" or panel == "inventory" or panel == "specialty" or panel == "titles" or panel == "guide" then
+	if panel == "case" or panel == "workshop" or panel == "inventory" or panel == "specialty" or panel == "titles" or panel == "guide" or panel=="decor"then
 		if panel == "case" and not working(player,sessions[player]) then message(player,"Сядь в рабочее кресло своего бюро, чтобы начать оценку."); return end
 		sendSnapshot(player); open(player, panel)
 	end
@@ -313,20 +393,38 @@ handlers.Inspect = function(player, data)
 	if not working(player, s) then message(player, "Для исследования сядь в своё рабочее кресло."); return end
 	local record = getRecord(player, data.caseId)
 	if not record then message(player, "Это дело уже закрыто."); sendSnapshot(player); return end
-	if record.busy then message(player, "Дождись завершения текущего исследования."); return end
+	if record.busy and record.busy.deadline<os.clock() then record.busy=nil;Workstation.Stop(player) end
+	if record.busy then sendSnapshot(player);return end
 	if (p.equipment[data.tool] or 0) <= 0 then message(player, "Сначала купи этот прибор в мастерской."); return end
 	if record.tests[data.tool] then message(player, "Результат уже записан в дело."); return end
-	local token = HttpService:GenerateGUID(false); record.busy = token
-	local seconds = Config.Tools[data.tool].seconds
-	State:FireClient(player, { kind = "scan", tool = data.tool, seconds = seconds, caseId = record.id })
-	task.delay(seconds, function()
-		local current = getRecord(player, data.caseId)
-		if current ~= record or record.busy ~= token or not Profiles.loaded[player] then return end
-		record.busy = nil
-		if not working(player, sessions[player]) then message(player, "Исследование прервано: ты встал из кресла."); sendSnapshot(player); return end
-		record.tests[data.tool] = Domain.test(p, index[record.item.id], record.item, data.tool)
+	record.busy=Challenges.New(data.tool,record.item.seed,os.clock());record.busy.id=HttpService:GenerateGUID(false)
+	Workstation.Begin(player,s.plot,record,data.tool)
+	Workstation.Step(player,record.busy)
+	local display=s.plot:FindFirstChild("CurrentItem")
+	if display then Audio.Play(display.PrimaryPart,if data.tool=="loupe"or data.tool=="scale"then "ceramic"else "paper")end
+	sendSnapshot(player)
+end
+handlers.ChallengeStep=function(player,data)
+	if type(data)~="table" or not working(player,sessions[player]) then return end
+	local record=getRecord(player,data.caseId)
+	if not record or not record.busy or data.id~=record.busy.id then return end
+	local c=record.busy
+	local ok,done,note=Challenges.Step(c,data.action,data.value,os.clock())
+	if ok then Workstation.Step(player,c)end
+	if done then
+		Workstation.Stop(player)
+		Tutorial.Mark(Profiles.loaded[player],c.tool)
+		record.tests[c.tool]=Domain.test(Profiles.loaded[player],index[record.item.id],record.item,c.tool);record.busy=nil
 		sendSnapshot(player)
-	end)
+	else
+		if os.clock()>c.deadline then record.busy=nil;Workstation.Stop(player);sendSnapshot(player);return end
+		State:FireClient(player,{kind="challengeUpdate",caseId=record.id,challenge=Challenges.Public(c),note=note,accepted=ok})
+	end
+end
+handlers.CancelInspection=function(player,data)
+	if type(data)~="table" then return end
+	local record=getRecord(player,data.caseId)
+	if record then record.busy=nil;Workstation.Stop(player);sendSnapshot(player) end
 end
 handlers.Complete = function(player, data)
 	if not validVerdict(data) or not working(player, sessions[player]) then message(player, "Нужны цена, заключение и место в своём рабочем кресле."); return end
@@ -352,7 +450,6 @@ handlers.Offer = function(player, data)
 		record.negotiations += 1; record.patience = math.max(0.05, record.patience - 0.1)
 		record.counter = Domain.money(minimum * (1.05 - record.negotiations * 0.015))
 		Customers.Mood(player, if amount < minimum * 0.4 then "angry" else "sigh", "Хочу не меньше " .. record.counter .. " монет")
-		message(player, "Предложение отклонено. Встречная цена: " .. record.counter .. ". Попыток осталось: " .. (3 - record.negotiations), "bad")
 		sendSnapshot(player)
 	end
 end
@@ -366,7 +463,7 @@ handlers.UpgradeBase = function(player)
 	for id, request in pairs(requests) do if request.appraiser == player then cancelRequest(id, "Бюро перестраивается. Комиссия не списана.") end end
 	-- Always relocate people before replacing collidable walls, floors and furniture.
 	for _, visitor in ipairs(Players:GetPlayers()) do
-		if visitor.Character and near(visitor, s.plot.Anchor.Position, 65) then visitor.Character:PivotTo(s.plot.Anchor.CFrame * CFrame.new(14, 4, -76)) end
+		if visitor.Character and near(visitor, s.plot.Anchor.Position, 65) then unseat(visitor);visitor.Character:PivotTo(s.plot.Anchor.CFrame * CFrame.new(14, 4, -76)) end
 	end
 	Customers.Detach(player)
 	p.cash -= nextLevel.price; p.baseLevel += 1
@@ -387,13 +484,38 @@ end
 handlers.Specialty = function(player, data)
 	local p = Profiles.loaded[player]
 	if type(data) ~= "table" or not Config.Specs[data.spec] then return end
-	if data.spec == p.specialty then return end
+	Tutorial.Mark(p,"specialty")
+	if data.spec == p.specialty then sendSnapshot(player);return end
 	p.specialty = data.spec
 	message(player, "Основная специальность: " .. Config.Specs[data.spec].name .. ". Опыт остальных направлений сохранён.", "good")
 	sendSnapshot(player); roster()
 end
 handlers.Train = function(player)
 	message(player,"Профессии развиваются практикой: оценивай предметы этого направления. Покупать уровни не требуется.")
+end
+handlers.Tutorial=function(player,data)
+	if type(data)~="table"then return end
+	local p=Profiles.loaded[player]
+	if data.mode=="skip"then p.tutorial.skipped=true
+	elseif data.mode=="replay"then p.tutorial={flags={},skipped=false}end
+	sendSnapshot(player)
+end
+handlers.BuyDecor=function(player,data)
+	if type(data)~="table"or type(data.id)~="string"then return end
+	local d=Decor.ById[data.id];local p,s=Profiles.loaded[player],sessions[player]
+	if not d or not s.plot then return end
+	if not near(player,s.plot.Anchor.Position,105)then message(player,"Покупка обстановки доступна у своего бюро.");return end
+	if not p.ownedDecor[d.id]then
+		if d.premium then Commerce.Prompt(player,d);return end
+		if availableCash(player)<d.price then message(player,"Не хватает монет на этот декор.","bad");return end
+		p.cash-=d.price;p.ownedDecor[d.id]=true
+	end
+	p.equippedDecor[d.category]=d.id;applyDecor(player);sendSnapshot(player);roster()
+end
+handlers.RemoveDecor=function(player,data)
+	if type(data)~="table"then return end
+	local p=Profiles.loaded[player];local d=Decor.ById[p.equippedDecor[data.category]]
+	if d and d.category~="chair"and d.category~="frame"and d.category~="card"then p.equippedDecor[d.category]=nil;applyDecor(player);sendSnapshot(player)end
 end
 handlers.Carry = function(player, data)
 	if type(data) ~= "table" then return end
@@ -411,6 +533,7 @@ handlers.Sell = function(player, data)
 	local value = Domain.money(Domain.trueValue(index[item.id], item) * 0.72)
 	table.remove(p.inventory, i); p.cash = Domain.money(p.cash + value)
 	if sessions[player].heldUid == item.uid then clearHeld(player) end
+	syncCollection(player)
 	message(player, "Скупщик купил «" .. index[item.id].name .. "» за " .. value .. " монет (72% рыночной цены).", "good")
 	sendSnapshot(player)
 end
@@ -438,6 +561,7 @@ handlers.Return = function(player)
 	if not s or not player.Character then return end
 	local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid and humanoid.Health > 0 then
+		unseat(player)
 		player.Character:PivotTo(if s.plot then s.plot.Anchor.CFrame * CFrame.new(14, 4, -65) else CFrame.new(0, 5, -274))
 	end
 end
@@ -454,7 +578,7 @@ handlers.Admin = function(player, data)
 	elseif data.command == "base" and s.plot then
 		for _, r in pairs(requests) do if r.appraiser == player then cancelRequest(r.id) end end
 		Customers.Detach(player)
-		for _, visitor in ipairs(Players:GetPlayers()) do if visitor.Character and near(visitor, s.plot.Anchor.Position, 70) then visitor.Character:PivotTo(s.plot.Anchor.CFrame * CFrame.new(14, 4, -76)) end end
+		for _, visitor in ipairs(Players:GetPlayers()) do if visitor.Character and near(visitor, s.plot.Anchor.Position, 70) then unseat(visitor);visitor.Character:PivotTo(s.plot.Anchor.CFrame * CFrame.new(14, 4, -76)) end end
 		p.baseLevel = p.baseLevel % 3 + 1; rebuild(player); Customers.Attach(player, s.plot, p)
 	elseif data.command == "spawn" and index[data.id] then
 		Customers.Flush(player)
@@ -467,9 +591,25 @@ handlers.Admin = function(player, data)
 			r.patience = if r.patience > 0.65 then 0.5 elseif r.patience > 0.3 then 0.15 else 1
 			Customers.Mood(player, if r.patience < 0.3 then "angry" elseif r.patience < 0.65 then "sigh" else "neutral")
 		end
+	elseif data.command=="mutation" or data.command=="unique" then
+		local r=Customers.Active(player)
+		local item=if data.uid then inventoryItem(p,data.uid)else r and r.item
+		if item then
+			if data.command=="mutation"then
+				local position=table.find(Rarity.Order,item.mutation)or 0
+				item.mutation=Rarity.Order[position+1]or"none"
+			else
+				local values={0,.1,1,10,100};local position=table.find(values,item.uniqueness or 0)or 1;item.uniqueness=values[position+1]or 0
+			end
+			updateDisplay(player,true);syncCollection(player)
+		end
+	elseif data.command=="decor"then
+		for _,d in ipairs(Decor.List)do p.ownedDecor[d.id]=true end
 	end
-	sendSnapshot(player); roster()
+	syncCollection(player);sendSnapshot(player); roster()
 end
+
+Commerce.Init(Profiles,sessions,message,function(player)applyDecor(player);sendSnapshot(player);roster()end)
 
 Action.OnServerEvent:Connect(function(player, action, data)
 	if type(action) ~= "string" or not handlers[action] then return end
@@ -518,6 +658,7 @@ local function characterAdded(player, character)
 	local s = sessions[player]
 	if s then
 		s.heldUid = nil
+		if Profiles.loaded[player]then syncCollection(player)end
 		character:PivotTo(if s.plot then s.plot.Anchor.CFrame * CFrame.new(14, 4, -65) else CFrame.new(0, 5, -274))
 	end
 end
@@ -536,11 +677,14 @@ local function joined(player)
 end
 Players.PlayerAdded:Connect(joined)
 Players.PlayerRemoving:Connect(function(player)
+	Workstation.Stop(player)
 	for id, request in pairs(requests) do if request.visitor == player or request.appraiser == player then cancelRequest(id, "Один из участников вышел. Комиссия не списана.") end end
 	Customers.Detach(player)
 	local s = sessions[player]
 	if s and s.plot then
 		s.plot:SetAttribute("OwnerId", nil)
+		local collection=s.plot:FindFirstChild("OwnedCollection");if collection then collection:Destroy()end
+		local decorations=s.plot:FindFirstChild("Decorations");if decorations then decorations:Destroy()end
 		local old = s.plot:FindFirstChild("CurrentItem"); if old then old:Destroy() end
 		local building = s.plot:FindFirstChild("Building"); if building then building:Destroy() end
 		local empty = ServerStorage.Buildings.Level1:Clone(); empty.Name = "Building"; empty:PivotTo(s.plot.Anchor.CFrame); empty.Parent = s.plot
@@ -572,6 +716,7 @@ task.spawn(function()
 			end
 			if occupied ~= status.open and not status.tweening then
 				status.open = occupied; status.tweening = true
+				Audio.Play(door.Sensor,"doorSlide")
 				door.Left.CanCollide = false; door.Right.CanCollide = false
 				local left = status.left * CFrame.new(if occupied then -7 else 0, 0, 0)
 				local right = status.right * CFrame.new(if occupied then 7 else 0, 0, 0)
@@ -579,6 +724,7 @@ task.spawn(function()
 				TweenService:Create(door.Right, TweenInfo.new(0.55, Enum.EasingStyle.Sine), { CFrame = right }):Play()
 				task.delay(0.6, function()
 					if door.Parent then door.Left.CanCollide = not occupied; door.Right.CanCollide = not occupied end
+					if door.Parent then Audio.Play(door.Sensor,"glassLatch")end
 					status.tweening = false
 				end)
 			end

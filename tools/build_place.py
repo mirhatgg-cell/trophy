@@ -216,7 +216,7 @@ def desk(parent):
     ball(m, "ServiceBell", (1, .6, 1), (8, 5.4, 4), "brass", "Metal")
     cylinder(m, "BellButton", .12, .25, (8, 5.8, 4), "brass")
     p = part(m, "Interaction", (.3, .3, .3), (0, 5.5, 7.5), alpha=1, collide=False)
-    prompt(p, "AppraisalPrompt", "Рабочее дело / экспертиза", "Стол оценщика", 17)
+    prompt(p, "AppraisalPrompt", "Независимая экспертиза", "Стол оценщика · работа в кресле", 17)
     # A framed receipt tray and split legs, not a single block standing in for a desk.
     part(m, "ReceiptTray", (2.2, .16, 2.6), (4.1, 5.02, 4.3), "brass", "Metal", collide=False)
     for dz in (-1.1, 1.1): part(m, "TrayLip", (2.2, .25, .12), (4.1, 5.18, 4.3+dz), "brass", "Metal", collide=False)
@@ -284,6 +284,25 @@ def display_case(parent, pos, width=10):
         for z in (-2.1, 2.1): part(m, "CaseStile", (.14, 2.5, .14), (x, 4.65, z), "brass", "Metal", collide=False)
     # Blank plinths are deliberate exhibit positions for the player's growing collection.
     for x in (-width*.28, 0, width*.28): cylinder(m, "ExhibitPlinth", .65, .17, (x, 3.6, 0), "ivory", "Marble")
+
+
+def collection_case(parent,pos,width=11,offset=0):
+    m=group(parent,"CollectionCabinet",pos)
+    part(m,"CabinetPlinth",(width,1.5,4.4),(0,.75,0),"wood","Wood")
+    for x in (-width/2,width/2):
+        for z in (-2.1,2.1):part(m,"CabinetStile",(.18,11,.18),(x,6.9,z),"brass","Metal",collide=False)
+        part(m,"SideSafetyGlass",(.13,10.1,4.2),(x,7.3,0),"glass","Glass",alpha=.76)
+    part(m,"CabinetBack",(width,10.8,.18),(0,7,2.1),"wood","Wood")
+    part(m,"CabinetCrown",(width+.4,.35,4.6),(0,12.4,0),"wood","Wood")
+    # An open-front display cabinet provides physical access; side safety glazing and raised lips retain objects.
+    for row in range(5):
+        y=1.6+row*2.1
+        part(m,"DisplayShelf",(width,.18,4.1),(0,y,0),"wood","Wood")
+        part(m,"ShelfLip",(width,.18,.09),(0,y+.14,-2),"brass","Metal",collide=False)
+        for col in range(4):
+            x=-width/2+1.3+col*(width-2.6)/3
+            cylinder(m,"CollectionPlinth",.53,.1,(x,y+.14,0),"ivory","Marble")
+            part(m,f"CollectionSlot_{offset+row*4+col+1:02d}",(.1,.1,.1),(x,y+.22,0),alpha=1,collide=False)
 
 
 def window_panel(parent, x, y, z, width, height, side=False):
@@ -359,7 +378,7 @@ def container_building(parent):
         for z in (-1.3,1.3):beam(chair,"ChairLeg",(x,0,z),(x,2.4,z),.22,"wood","Wood",True)
         beam(chair,"BackStile",(x,2.4,1.5),(x,5.3,1.5),.22,"wood","Wood",True)
     part(chair,"BackPad",(3.3,2.1,.45),(0,4.3,1.5),"mint","Fabric")
-    for x in (-21,21):display_case(b,(x,1,-5),11)
+    collection_case(b,(-21,1,-5),11,0);collection_case(b,(21,1,-5),11,20)
     for x,z in ((-8,-5),(-14,-5),(8,-5),(14,-5)):cylinder(b,"QueueInlay",.65,.025,(x,1.025,z),"brass")
     for x in (-17,0,17):lamp(b,(x,12.2,0))
     for x in (-26.5,26.5):part(b,"ElectricalConduit",(.16,.18,18),(x,12.7,0),"iron","Metal",collide=False)
@@ -368,6 +387,7 @@ def container_building(parent):
     for i in range(7):part(b,"VentFin",(4.3,.12,.08),(22,2.1+i*.3,13.8),"iron","Metal",collide=False)
     registry=sign(b,"МАСТЕРСКАЯ",(23,10,10.1),(7,1.6,.12),"cream","ink")
     prompt(registry,"RegistryPrompt","Развитие бюро","Оборудование и декор",15)
+    decor_sockets(b,w,d,h)
     return b
 
 
@@ -477,8 +497,8 @@ def building(parent, level):
         beam(chair,"BackStile",(x,2.5,1.65),(x,6,1.65),.28,"wood","Wood",True)
     part(chair,"BackPad",(3.5,2.6,.5),(0,4.8,1.65),"mint","Fabric")
     beam(chair,"ChairBrace",(-1.5,1,-1.5),(1.5,1,1.5),.2,"wood","Wood")
-    display_case(b,(-width/2+9,1,-10),11)
-    display_case(b,(28 if level==3 else width/2-9,1,-29 if level==3 else -10),15 if level==3 else 11)
+    collection_case(b,(-width/2+9,1,-10),11,0)
+    collection_case(b,(28 if level==3 else width/2-9,1,-29 if level==3 else -10),15 if level==3 else 11,20)
     sign(b,"ПРАВИЛА БЮРО\nОсмотр • Заключение • Выкуп",(-width/2+9,11,-depth/2+1.6),(11,4,.15),"cream","ink")
     registry=sign(b,"РАЗВИТИЕ\nБюро и оборудование",(width/2-8,11,-depth/2+1.6),(10,4,.15),"cream","ink")
     prompt(registry,"RegistryPrompt","Развитие бюро","Каталог мастерской",18)
@@ -534,7 +554,74 @@ def building(parent, level):
     sign_x=width/2-11
     sign(b,"ОЦЕНКА  •  ВЫКУП  •  ЭКСПЕРТИЗА",(sign_x,3.2,front-17),(15,2,.2),"cream","mint")
     for x in (sign_x-7.3,sign_x+7.3): beam(b,"SignFoot",(x,.1,front-17),(x,4.2,front-17),.18,"iron")
+    decor_sockets(b,width,depth,height)
     return b
+
+
+def decor_sockets(b,w,d,h):
+    sockets={"sign":((-w/2+9,9,-d/2-1.5),0),"banner":((w/2-4,7.6,d/2-1.5),0),
+             "advert":((w/2+.5,6.6,0),-90),"painting":((-w/2+7,9,d/2-1.5),0),
+             "lamp":((0,h-3.5,-3.5),0),"scales":((-7,5.04,6.1),0)}
+    for key,(position,yaw)in sockets.items():part(b,"DecorSocket_"+key,(.1,.1,.1),position,rotation=(0,yaw,0),alpha=1,collide=False)
+
+
+def decor_model(parent,definition):
+    m=group(parent,definition['id']);anchor(m)
+    category=definition['category'];tier=definition['tier'];color=tuple(definition['color'])
+    if category in ('frame','card'):return m
+    if category=='chair':
+        part(m,'PreviewSeat',(3.8,.55,3.5),(0,2.6,0),color,'Fabric',collide=False)
+        for x in (-1.45,1.45):
+            for z in (-1.3,1.3):beam(m,'ChairLeg',(x,0,z),(x,2.4,z),.22,'wood','Wood')
+            beam(m,'BackStile',(x,2.4,1.5),(x,5.3,1.5),.22,'wood','Wood')
+            if tier>1:part(m,'ArmRest',(.16,.18,2.7),(x*1.34,3.5,0),'brass','Metal',collide=False)
+        part(m,'BackPad',(3.3,2.1,.45),(0,4.3,1.5),color,'Fabric',collide=False)
+        return m
+    def panel(name,size,pos,c=color,material='Metal'):
+        return part(m,name,size,pos,c,material,collide=False)
+    if category in ('sign','advert','painting'):
+        w,h=(11,4.8)if category=='sign'else(8,5.4)
+        panel('BackBoard',(w,h,.3),(0,0,.1),'wood','Wood')
+        for x in (-w/2,w/2):panel('FrameUpright',(.18 if tier==1 else .4,h+.5,.45),(x,0,-.1),'wood'if tier==1 else'brass')
+        for y in (-h/2,h/2):panel('FrameRail',(w+.5,.25 if tier==1 else .42,.45),(0,y,-.1),'wood'if tier==1 else'brass')
+        if category=='painting':
+            panel('PaintedCanvas',(w-.6,h-.6,.05),(0,0,-.13),'paper','Fabric')
+            panel('HarborWater',(w-.8,h*.37,.035),(0,-h*.22,-.18),'blue','SmoothPlastic')
+            for i in range(4):part(m,'PaintedRoof',(1.4,1,.025),(-2.4+i*1.4,.1+(i%2)*.3,-.19),'wood','SmoothPlastic',cls='WedgePart',collide=False)
+            ball(m,'PaintedSun',(.7,.7,.025),(2,h*.22,-.19),'amber')
+        else:
+            sign(m,'PROBA\nAPPRAISAL & ANTIQUES'if category=='sign'else'BUY · SELL · VALUE',(0,0,-.12),(w-.5,h-.5,.06),'cream','ink')
+        for x in (-w/2+.6,w/2-.6):beam(m,'WallBracket',(x,h/2,.4),(x,h/2+1.2,1),.12,'iron')
+        if tier>=3:
+            rotor=group(m,'MotionSpin',(0,0,-.4));anchor(rotor)
+            ring(rotor,'Gimbal',(0,0,0),h*.38,.07,'gold',24,plane='xy')
+            for i in range(12):
+                a=i*math.pi/6;part(rotor,'GearTooth',(.14,.24,.16),(math.sin(a)*h*.4,math.cos(a)*h*.4,0),'brass','Metal',rotation=(0,0,-i*30),collide=False)
+    elif category=='banner':
+        beam(m,'WallHanger',(-2.8,3.5,.5),(2.8,3.5,.5),.14,'brass')
+        cloth=group(m,'MotionSwing'if tier==3 else'Cloth',(0,3.3,0));anchor(cloth)
+        part(cloth,'WovenBanner',(4.6,6,.12),(0,-3,0),color,'Fabric',collide=False)
+        for x in (-2.12,2.12):part(cloth,'Embroidery',(.1,5.6,.06),(x,-3,-.1),'gold','Fabric',collide=False)
+        sign(cloth,'P',(0,-2.5,-.15),(2.4,2.6,.04),'gold','ink',font=8)
+        for x in (-1.8,-.9,0,.9,1.8):beam(cloth,'Tassel',(x,-5.9,0),(x,-6.5,0),.08,'gold','Fabric')
+    elif category=='lamp':
+        cylinder(m,'CeilingMount',.45,.18,(0,3.1,0),'brass')
+        beam(m,'Suspension',(0,.8,0),(0,3.1,0),.09,'brass')
+        bulb=ball(m,'OpalDiffuser',(1.7,2,1.7),(0,0,0),'ivory','Neon')
+        Node('PointLight','AccentLight',bulb).set('Brightness','float',.35).set('Range','float',14).set('Color','Color3',(1,.88,.66)).set('Shadows','bool',False)
+        rotor=group(m,'MotionSpin'if tier==3 else'LampCage');anchor(rotor)
+        for i in range(6):
+            a=i*math.pi/3;beam(rotor,'LampStile',(math.sin(a)*1.05,-1.1,math.cos(a)*1.05),(math.sin(a)*1.05,1.1,math.cos(a)*1.05),.09,'brass')
+        for y in (-1.1,1.1):ring(rotor,'CageRing',(0,y,0),1.05,.08,'brass')
+    elif category=='scales':
+        cylinder(m,'CarvedBase',.8,.18,(0,.1,0),'wood','Wood')
+        cylinder(m,'Column',.1,2.1,(0,1.2,0),'brass')
+        arm=group(m,'MotionSwing'if tier==3 else'BalanceArm',(0,2.3,0));anchor(arm)
+        beam(arm,'CrossArm',(-1.6,0,0),(1.6,0,0),.1,'brass')
+        for side in (-1,1):
+            for z in (-.35,.35):beam(arm,'PanChain',(side*1.45,0,0),(side*1.45,-1.1,z),.025,'silver')
+            cylinder(arm,'IndividualPan',.5,.06,(side*1.45,-1.15,0),'brass')
+    return m
 
 
 def make_item(parent, definition):
@@ -570,7 +657,7 @@ def make_item(parent, definition):
         for y in (.35,.7,1.05,1.4):
             for i in range(24):
                 t=2*math.pi*i/24;r=radius*(.82+y*.12)
-                p("HollowCupWall",(.26,.36,.17),(math.sin(t)*r,y,math.cos(t)*r),rotation=(0,math.degrees(t),0))
+                p("HollowCupWall",(2*r*math.tan(math.pi/24)+.025,.36,.17),(math.sin(t)*r,y,math.cos(t)*r),rotation=(0,math.degrees(t),0))
         ri("Lip",(0,1.6,0),radius*1.015,.09,"brass" if kind=="cup" else "iron")
         ri("Handle",(radius+.23,.9,0),.58,.13,plane="xy",arc=260,start=-130)
         if kind=="cup": cy("Saucer",1.55,.1,(0,.02,0));ri("SaucerTrim",(0,.1,0),1.4,.055,"gold")
@@ -696,6 +783,17 @@ def make_item(parent, definition):
                 t=i*math.pi/6;p("DialMarker",(.06,.02,.14),(math.sin(t)*.74,.37,math.cos(t)*.74),"iron",rotation=(0,i*30,0))
             beam(m,"LongHand",(0,.41,0),(.2,.41,.64),.045,"iron");beam(m,"ShortHand",(0,.43,0),(-.4,.43,.2),.07,"iron");ba("Pin",(.13,.07,.13),(0,.45,0),"brass")
             if kind=="pocketwatch":ri("Bow",(0,.2,-1.25),.3,.09,plane="xz");cy("WindingCrown",.14,.25,(0,.2,-1.1))
+        elif kind=="coin":
+            # A struck profile with a neck, shoulder, nose and raised hair, rather than a blank disk.
+            ba("PortraitHead",(.55,.055,.71),(-.04,.365,-.03),"brass")
+            p("PortraitNeck",(.21,.055,.27),(-.02,.365,.37),"brass")
+            ba("PortraitShoulder",(.72,.055,.3),(-.04,.365,.52),"brass")
+            p("ProfileNose",(.16,.055,.12),(.22,.368,-.09),"brass",cls="WedgePart")
+            for i in range(7):
+                p("RaisedHair",(.08,.025,.24),(-.22+i*.055,.401,-.17+(i%2)*.02),"brass",rotation=(0,-14+i*5,0))
+            for i in range(18):
+                t=i*math.pi/9
+                ba("BeadedBorder",(.035,.025,.035),(math.sin(t)*(radius-.2),.353,math.cos(t)*(radius-.2)))
         else:
             cy("CentralRelief",.4,.05,(0,.35,0),"brass")
             for i in range(5):
@@ -1027,8 +1125,11 @@ def lua_literal(value):
 def main():
     OUT.mkdir(exist_ok=True)
     definitions=json.loads((ROOT/"content/items.json").read_text())
+    decor_definitions=json.loads((ROOT/"content/decor.json").read_text())
     catalog_src="-- Generated from content/items.json by tools/build_place.py.\nreturn {\n"+"\n".join("\t"+lua_literal(d)+"," for d in definitions)+"\n}\n"
     (ROOT/"src/Server/Catalog.luau").write_text(catalog_src)
+    decor_src='-- Generated from content/decor.json.\nlocal Decor={List={\n'+'\n'.join('\t'+lua_literal(d)+','for d in decor_definitions)+'\n}}\nDecor.ById={}\nfor _,d in ipairs(Decor.List)do Decor.ById[d.id]=d end\nreturn Decor\n'
+    (ROOT/'src/Shared/Decor.luau').write_text(decor_src)
     root=Node("DataModel","PROBA")
     workspace=Node("Workspace","Workspace",root).set("Gravity","float",196.2).set("FallenPartsDestroyHeight","float",-100).set("StreamingEnabled","bool",False)
     town(workspace)
@@ -1052,6 +1153,8 @@ def main():
     rep=Node("ReplicatedStorage","ReplicatedStorage",root)
     item_models=Node("Folder","ItemModels",rep)
     models=[make_item(item_models,d) for d in definitions]
+    decor_models=Node('Folder','DecorModels',rep)
+    for definition in decor_definitions:decor_model(decor_models,definition)
     network=Node("Folder","Network",rep)
     Node("RemoteEvent","Action",network);Node("RemoteEvent","State",network)
     shared=Node("Folder","Shared",rep)
@@ -1065,6 +1168,8 @@ def main():
     starter=Node("StarterPlayer","StarterPlayer",root).set("CameraMinZoomDistance","float",5).set("CameraMaxZoomDistance","float",36).set("CharacterWalkSpeed","float",16)
     scripts=Node("StarterPlayerScripts","StarterPlayerScripts",starter)
     Node("LocalScript","ProbaClient",scripts).set("Source","ProtectedString",(ROOT/"src/Client/Main.client.luau").read_text()).set("Disabled","bool",False)
+    for path in sorted((ROOT/"src/Client").glob("*.luau")):
+        if path.name!="Main.client.luau":Node("ModuleScript",path.stem,scripts).set("Source","ProtectedString",path.read_text())
     Node("StarterGui","StarterGui",root)
     lighting=Node("Lighting","Lighting",root).set("ClockTime","float",15.2).set("Brightness","float",2.3).set("GlobalShadows","bool",True).set("EnvironmentDiffuseScale","float",.65).set("EnvironmentSpecularScale","float",.8)
     lighting.set("Ambient","Color3",(.45,.49,.47)).set("OutdoorAmbient","Color3",(.59,.63,.62)).set("ShadowSoftness","float",.3).set("GeographicLatitude","float",38)

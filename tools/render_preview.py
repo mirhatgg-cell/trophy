@@ -54,11 +54,11 @@ light_data=bpy.data.lights.new('LateAfternoon','SUN');light=bpy.data.objects.new
 camera_data=bpy.data.cameras.new('PreviewCamera');camera=bpy.data.objects.new('PreviewCamera',camera_data);bpy.context.collection.objects.link(camera)
 camera.location=point((38,82,-315));target=Vector(point((-80,8,-112)));camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler();camera_data.type='PERSP';camera_data.lens=38
 if mode=='interior':
-    camera.location=point((-100,11,-137));target=Vector(point((-125,5,-162)))
+    camera.location=point((-109,8,-153));target=Vector(point((-122,5,-160)))
     camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler();camera_data.lens=24
     for xx in (-137,-118,-99):
         ld=bpy.data.lights.new('InteriorLamp','AREA');lo=bpy.data.objects.new('InteriorLamp',ld);bpy.context.collection.objects.link(lo)
-        lo.location=point((xx,14,-160));ld.energy=2200;ld.size=7
+        lo.location=point((xx,11.5,-160));ld.energy=1400;ld.size=7
 sc=bpy.context.scene;sc.camera=camera;sc.render.engine='CYCLES';sc.cycles.samples=96 if mode=='interior' else 24;sc.cycles.use_denoising=False
 for layer in sc.view_layers:layer.cycles.use_denoising=False
 sc.render.resolution_x=1600;sc.render.resolution_y=1000;sc.render.resolution_percentage=100

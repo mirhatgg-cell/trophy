@@ -1,0 +1,32 @@
+-- Generated from content/decor.json.
+local Decor={List={
+	{["id"] = "sign_painted", ["name"] = "Ручная вывеска", ["category"] = "sign", ["tier"] = 1, ["price"] = 180, ["color"] = {116, 153, 126}, ["description"] = "Тёплое дерево, ручная надпись и кованые петли."},
+	{["id"] = "sign_brass", ["name"] = "Латунное бюро", ["category"] = "sign", ["tier"] = 2, ["price"] = 1800, ["color"] = {183, 143, 75}, ["description"] = "Гравированная рама с эмалевым знаком мастера."},
+	{["id"] = "sign_kinetic", ["name"] = "Кинетическая печать", ["category"] = "sign", ["tier"] = 3, ["price"] = 11000, ["color"] = {222, 178, 90}, ["description"] = "Вращающийся зубчатый герб и подвес на настоящей оси."},
+	{["id"] = "banner_canvas", ["name"] = "Парусиновый баннер", ["category"] = "banner", ["tier"] = 1, ["price"] = 240, ["color"] = {145, 164, 142}, ["description"] = "Ткань на перекладине и крепёжные кольца."},
+	{["id"] = "banner_embroidered", ["name"] = "Знамя гильдии", ["category"] = "banner", ["tier"] = 2, ["price"] = 1600, ["color"] = {59, 83, 78}, ["description"] = "Двойная кайма, кисти и вышитая эмблема."},
+	{["id"] = "banner_astral", ["name"] = "Астральный штандарт", ["category"] = "banner", ["tier"] = 3, ["premium"] = true, ["value"] = 12000, ["color"] = {69, 79, 123}, ["description"] = "Медленно качающийся штандарт со звёздным орнаментом."},
+	{["id"] = "advert_market", ["name"] = "Объявление на рынке", ["category"] = "advert", ["tier"] = 1, ["price"] = 120, ["color"] = {207, 193, 155}, ["description"] = "Сменный бумажный плакат в деревянном держателе."},
+	{["id"] = "advert_gilt", ["name"] = "Золотая реклама бюро", ["category"] = "advert", ["tier"] = 2, ["price"] = 950, ["color"] = {189, 151, 87}, ["description"] = "Рельефные буквы и двойная декоративная рамка."},
+	{["id"] = "painting_harbor", ["name"] = "Утро в гавани", ["category"] = "painting", ["tier"] = 1, ["price"] = 550, ["color"] = {110, 150, 166}, ["description"] = "Авторская составная миниатюра гавани в деревянной раме."},
+	{["id"] = "painting_master", ["name"] = "Кабинет старого мастера", ["category"] = "painting", ["tier"] = 2, ["price"] = 2600, ["color"] = {157, 110, 70}, ["description"] = "Глубокая золочёная рама и предметный натюрморт."},
+	{["id"] = "painting_clockwork", ["name"] = "Живой астролябий", ["category"] = "painting", ["tier"] = 3, ["price"] = 9500, ["color"] = {192, 158, 92}, ["description"] = "Механическая картина с вращающимися кольцами."},
+	{["id"] = "chair_wood", ["name"] = "Рабочий стул", ["category"] = "chair", ["tier"] = 1, ["price"] = 0, ["color"] = {125, 149, 126}, ["description"] = "Базовая обивка рабочего кресла."},
+	{["id"] = "chair_velvet", ["name"] = "Бархатное кресло", ["category"] = "chair", ["tier"] = 2, ["price"] = 850, ["color"] = {61, 83, 113}, ["description"] = "Тёмный бархат, медные пуговицы и мягкий валик."},
+	{["id"] = "chair_gilded", ["name"] = "Кресло магистра", ["category"] = "chair", ["tier"] = 3, ["price"] = 4200, ["color"] = {99, 64, 83}, ["description"] = "Позолоченные накладки, подлокотники и декоративная корона."},
+	{["id"] = "lamp_simple", ["name"] = "Лампа мастерской", ["category"] = "lamp", ["tier"] = 1, ["price"] = 280, ["color"] = {153, 169, 142}, ["description"] = "Стальной плафон и тёплый рассеиватель."},
+	{["id"] = "lamp_artdeco", ["name"] = "Светильник ар-деко", ["category"] = "lamp", ["tier"] = 2, ["price"] = 1800, ["color"] = {197, 163, 100}, ["description"] = "Шесть янтарных секций, латунные стойки и матовое стекло."},
+	{["id"] = "lamp_orbit", ["name"] = "Орбитальная люстра", ["category"] = "lamp", ["tier"] = 3, ["premium"] = true, ["value"] = 15000, ["color"] = {214, 185, 119}, ["description"] = "Подвес с вращающимися кольцами и мягким свечением."},
+	{["id"] = "scales_antique", ["name"] = "Антикварные чашечные весы", ["category"] = "scales", ["tier"] = 2, ["price"] = 1100, ["color"] = {166, 135, 89}, ["description"] = "Декоративные чаши на цепях; точные весы остаются отдельным прибором."},
+	{["id"] = "scales_guild", ["name"] = "Весы гильдии", ["category"] = "scales", ["tier"] = 3, ["price"] = 4800, ["color"] = {215, 175, 93}, ["description"] = "Качающийся рычаг с резным основанием и двумя чашами."},
+	{["id"] = "frame_plain", ["name"] = "Простая рамка", ["category"] = "frame", ["tier"] = 1, ["price"] = 0, ["color"] = {146, 161, 155}, ["description"] = "Спокойная тонкая рамка карточки игрока."},
+	{["id"] = "frame_brass", ["name"] = "Чеканная рамка", ["category"] = "frame", ["tier"] = 2, ["price"] = 650, ["color"] = {199, 159, 86}, ["description"] = "Латунные угловые скобы, отдельные от титула."},
+	{["id"] = "frame_mechanical", ["name"] = "Механическая рамка", ["category"] = "frame", ["tier"] = 3, ["price"] = 4200, ["color"] = {172, 190, 199}, ["description"] = "Угловые вращающиеся шестерни вокруг карточки."},
+	{["id"] = "frame_astral", ["name"] = "Орбитальная рамка", ["category"] = "frame", ["tier"] = 3, ["premium"] = true, ["value"] = 8000, ["color"] = {149, 165, 223}, ["description"] = "Сдержанная орбита светлых звёзд по краю карточки."},
+	{["id"] = "card_paper", ["name"] = "Бумажный фон", ["category"] = "card", ["tier"] = 1, ["price"] = 0, ["color"] = {47, 57, 55}, ["description"] = "Нейтральная подложка карточки оценщика."},
+	{["id"] = "card_velvet", ["name"] = "Бархатный фон", ["category"] = "card", ["tier"] = 2, ["price"] = 1000, ["color"] = {74, 44, 65}, ["description"] = "Тёмная бархатная растяжка со спокойной геральдикой."},
+	{["id"] = "card_starmap", ["name"] = "Карта созвездий", ["category"] = "card", ["tier"] = 3, ["price"] = 4500, ["color"] = {39, 49, 83}, ["description"] = "Отдельный фон с мерцающим созвездием; титул выбирается независимо."},
+}}
+Decor.ById={}
+for _,d in ipairs(Decor.List)do Decor.ById[d.id]=d end
+return Decor

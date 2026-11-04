@@ -1,5 +1,6 @@
 -- Pure economy and assessment rules. This module also runs in the standalone Luau test suite.
 local Domain = {}
+local Rarity = require(if script then script.Parent.Rarity else "./Rarity")
 
 function Domain.finite(n)
 	return type(n) == "number" and n == n and n > -math.huge and n < math.huge
@@ -16,7 +17,8 @@ end
 
 function Domain.trueValue(def, item)
 	local originality = if item.genuine then 1 else 0.16 + Domain.hash(item.seed, 13) * 0.19
-	return math.max(5, Domain.money(def.value * (0.42 + item.condition * 0.58) * item.demand * originality))
+	local restoration=if item.repair==true then .92 else 1
+	return math.max(5, Domain.money(def.value * (0.42 + item.condition * 0.58) * item.demand * originality * restoration * Rarity.Multiplier(item)))
 end
 
 function Domain.specLevel(xp)
@@ -73,7 +75,7 @@ function Domain.test(profile, def, item, tool)
 			else "Наблюдение: «" .. def.mark .. "». " .. (if detects then "Износ согласуется с поверхностью; явных следов новодела не видно." else "Часть деталей неразличима. Одного наблюдения недостаточно.")
 	elseif tool == "uv" then
 		text = if not item.genuine and detects then "Неравномерная яркая флуоресценция: обнаружены современный связующий состав и искусственная патина."
-			elseif item.condition < 0.65 then "Есть локальная реставрация. Она снижает стоимость, но сама по себе не доказывает подделку."
+			elseif item.repair==true or (item.repair==nil and item.condition<0.65) then "Есть локальная реставрация. Она снижает стоимость, но сама по себе не доказывает подделку."
 			else "Свечение слабое и однородное. Явные зоны свежего клея не обнаружены."
 	elseif tool == "spectro" then
 		text = if not item.genuine and detects then "Состав расходится с заявленным материалом «" .. def.material .. "». Вероятны покрытие или композит."

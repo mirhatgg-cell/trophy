@@ -3,6 +3,9 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local Config = require(game.ReplicatedStorage.Shared.Config)
 local Domain = require(game.ReplicatedStorage.Shared.Domain)
+local Rarity = require(game.ReplicatedStorage.Shared.Rarity)
+local Decor = require(game.ReplicatedStorage.Shared.Decor)
+local Tutorial=require(game.ReplicatedStorage.Shared.Tutorial)
 
 local Profiles = { loaded = {}, sessions = {} }
 local store
@@ -18,7 +21,10 @@ local function defaults()
 	return { schema = 1, cash = Config.StartingCash, reputation = 0, baseLevel = 1, specialty = "Everyday",
 		specXP = { Everyday = 0, Jeweler = 0, Historian = 0, Archaeologist = 0, Technician = 0 },
 		equipment = { loupe = 1, scale = 1, uv = 0, spectro = 0, diagnostic = 0 },
-		inventory = {}, seen = {}, title = "trainee", stats = { served = 0, good = 0, fakes = 0, purchases = 0, rare = 0 } }
+		inventory = {}, seen = {}, title = "trainee",ownedDecor={chair_wood=true,frame_plain=true,card_paper=true},
+		equippedDecor={chair="chair_wood",frame="frame_plain",card="card_paper"},receipts={},
+		tutorial={flags={},skipped=false},
+		stats = { served = 0, good = 0, fakes = 0, purchases = 0, rare = 0 } }
 end
 
 local function integer(value, default, low, high)
@@ -58,6 +64,11 @@ local function sanitize(raw, catalogById)
 					condition = math.clamp(item.condition, 0.35, 1), demand = math.clamp(item.demand, 0.85, 1.2), genuine = item.genuine,
 					paid = integer(item.paid, 0, 0, 1000000000), reports = {} }
 				if type(item.story) == "string" and #item.story <= 1500 and utf8.len(item.story) then clean.story = item.story end
+				clean.visualSeed=integer(item.visualSeed,1,1,1000000)
+				clean.surfaceTone=if Domain.finite(item.surfaceTone)then math.clamp(item.surfaceTone,0,.25)else 0
+				clean.repair=if type(item.repair)=="boolean"then item.repair else item.condition<.65
+				clean.mutation=if Rarity.Definitions[item.mutation]then item.mutation else "none"
+				clean.uniqueness=integer((if Domain.finite(item.uniqueness)then item.uniqueness else 0)*10,0,0,1000)/10
 				if type(item.reports) == "table" then
 					for _, report in ipairs(item.reports) do
 						if #clean.reports >= 3 then break end
@@ -73,6 +84,13 @@ local function sanitize(raw, catalogById)
 	end
 	local unlocked = Domain.unlockedTitles(profile)
 	profile.title = if unlocked[raw.title] then raw.title else "trainee"
+	if type(raw.ownedDecor)=="table"then for id,owned in pairs(raw.ownedDecor)do if owned==true and Decor.ById[id]then profile.ownedDecor[id]=true end end end
+	if type(raw.equippedDecor)=="table"then for category,id in pairs(raw.equippedDecor)do local d=Decor.ById[id];if d and d.category==category and profile.ownedDecor[id]then profile.equippedDecor[category]=id end end end
+	if type(raw.receipts)=="table"then for id,done in pairs(raw.receipts)do if type(id)=="string"and #id<=120 and done==true then profile.receipts[id]=true end end end
+	if type(raw.tutorial)=="table"then
+		profile.tutorial.skipped=raw.tutorial.skipped==true
+		if type(raw.tutorial.flags)=="table"then for _,step in ipairs(Tutorial.Steps)do if raw.tutorial.flags[step.event]==true then profile.tutorial.flags[step.event]=true end end end
+	end
 	return profile
 end
 

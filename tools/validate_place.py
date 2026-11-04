@@ -56,12 +56,24 @@ for m in children(models):
     require(prop(m,'PrimaryPart').text in refs,f'Missing model pivot for {name(m)}')
     require(len([p for p in descendants(m) if is_part(p)])>=4,f'Missing authored geometry for {name(m)}')
     require(all(not collides(p) for p in descendants(m) if is_part(p)),f'Inventory detail colliders enabled: {name(m)}')
+    for wall in descendants(m,'HollowCupWall'):
+        x,_,z=position(wall);radius=math.hypot(x,z)
+        require(size(wall)[0]>=2*radius*math.tan(math.pi/24),f'Open seam between cup wall segments: {name(m)}')
+
+decor=child(rep,'DecorModels');decor_defs=json.loads((ROOT/'content/decor.json').read_text())
+require({name(m)for m in children(decor)}=={d['id']for d in decor_defs},'Decor catalog and models differ')
+for m in children(decor):
+    require(prop(m,'PrimaryPart').text in refs,f'Decor missing pivot: {name(m)}')
+    for p in descendants(m):
+        if is_part(p):require(not collides(p)and prop(p,'Anchored').text=='true',f'Decor may obstruct routes or fall: {name(m)} / {name(p)}')
 
 expected_sources={}
 for folder in ('Shared','Server'):
     for f in (ROOT/'src'/folder).glob('*.luau'):
         expected_sources[f.name.replace('.server.luau','').replace('.luau','')]=f.read_text()
 expected_sources['ProbaClient']=(ROOT/'src/Client/Main.client.luau').read_text()
+for f in (ROOT/'src/Client').glob('*.luau'):
+    if f.name!='Main.client.luau':expected_sources[f.stem]=f.read_text()
 actual_scripts=[n for n in nodes if n.get('class') in ('Script','LocalScript','ModuleScript')]
 require(len(actual_scripts)==len(expected_sources),'Unexpected or missing scripts in built place')
 for n in actual_scripts:require(prop(n,'Source').text==expected_sources[name(n)],f'Out-of-date embedded script {name(n)}')
@@ -106,6 +118,11 @@ def check_route(model,points,label):
                         require(not hit(box,x+dx,y,z+dz),f'{name(model)} blocked {label} at ({x:.2f},{z:.2f}) by {name(p)}')
 
 for base in children(buildings):
+    slots=[p for p in descendants(base)if name(p).startswith('CollectionSlot_')]
+    require(len(slots)==40 and len({name(p)for p in slots})==40,'Every shop needs forty distinct physical collection places')
+    sockets=[p for p in descendants(base)if name(p).startswith('DecorSocket_')]
+    require({name(p)for p in sockets}=={'DecorSocket_'+c for c in ('sign','banner','advert','painting','lamp','scales')},'Safe decor mounting sockets missing')
+    for socket in sockets:require(not collides(socket),'Decor socket must not obstruct movement')
     for marker in ('AppraisalPrompt','AppraiserSeat','RegistryPrompt','Tool_loupe','Tool_scale','Tool_uv','Tool_spectro','Tool_diagnostic'):
         require(len(descendants(base,marker))==1,f'Missing or duplicated runtime marker: {name(base)} {marker}')
     check_route(base,[(46,-94),(0,-48),(0,-20),(0,-1)],'customer arrival')
