@@ -4,6 +4,9 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import argparse
 import math
+import re
+import json
+import hashlib
 from architecture import Architect
 from world_spec import records
 
@@ -57,6 +60,8 @@ def build():
     # Services and scripts are embedded: the rbxlx runs without plugins or downloads.
     rs=item(root,'ReplicatedStorage','ReplicatedStorage')
     item(rs,'RemoteEvent','TrophyEvent')
+    build_id=re.search(r"C.BuildId = '([^']+)'",(ROOT/'src/Catalog.lua').read_text()).group(1)
+    item(rs,'StringValue','MountainverseBuildId',[('string','Value',build_id)])
     for module in ('Catalog','TrophyIcons','Trials','Elimination','Infrastructure'):
         item(rs,'ModuleScript',module,[('ProtectedString','Source',(ROOT/f'src/{module}.lua').read_text())])
     server=item(root,'ServerScriptService','ServerScriptService')
@@ -71,11 +76,18 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--check',action='store_true',help='Fail if the committed place differs from source')
     args=parser.parse_args()
-    target=ROOT/'Mountainverse.rbxlx'
+    targets=[ROOT/'Mountainverse.rbxlx',ROOT/'Trophy.rbxlx']
     data=build()
+    tree=ET.fromstring(data)
+    build_id=re.search(r"C.BuildId = '([^']+)'",(ROOT/'src/Catalog.lua').read_text()).group(1)
+    metadata={"build_id":build_id,"canonical_file":"Mountainverse.rbxlx","compatibility_file":"Trophy.rbxlx", "sha256":hashlib.sha256(data).hexdigest(),"bytes_per_file":len(data),"physical_parts":sum(x.attrib.get('class') in ('Part','WedgePart','SpawnLocation') for x in tree.iter('Item')),"scripts":sum(x.attrib.get('class') in ('Script','LocalScript','ModuleScript') for x in tree.iter('Item'))}
+    metadata_bytes=(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n').encode()
     if args.check:
-        if not target.exists() or target.read_bytes()!=data: raise SystemExit('Mountainverse.rbxlx is stale; run python3 tools/build_place.py')
-        print('OK: Mountainverse.rbxlx matches source and parses as XML')
+        for target in targets:
+            if not target.exists() or target.read_bytes()!=data: raise SystemExit(f'{target.name} is stale; run python3 tools/build_place.py')
+        if not (ROOT/'build-info.json').exists() or (ROOT/'build-info.json').read_bytes()!=metadata_bytes: raise SystemExit('build-info.json is stale')
+        print(f'OK: both download filenames contain {build_id}; SHA-256 {metadata["sha256"]}')
     else:
-        target.write_bytes(data)
-        print(f'Built {target.name}: {len(data):,} bytes')
+        for target in targets: target.write_bytes(data)
+        (ROOT/'build-info.json').write_bytes(metadata_bytes)
+        print(f'Built both download files: {build_id}, {len(data):,} bytes each')

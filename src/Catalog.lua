@@ -1,6 +1,7 @@
 -- MOUNTAINVERSE authoritative trial and progression catalog.
 local C = {}
-C.GameVersion = 2
+C.GameVersion = 3
+C.BuildId = 'MV-2026.11.04-r3'
 C.RoundsPerRun = 5
 C.MutationChance = 0.001 -- 0.1% per victory; never sold for Robux.
 C.AdminUserIds = {} -- Add trusted Roblox UserIds before publishing a group-owned place.

@@ -226,7 +226,7 @@ local function award(p,id,debugMutation)
  achievements(p); updateBase(p); sync(p)
 end
 local function podUpdate(pod)
- pod.text.Text='КУБ '..pod.id..'\n'..#pod.members..' / '..pod.max..' · '..({'Легко','Обычно','Хардкор'})[pod.difficulty]
+ pod.text.Text='ASSEMBLY '..pod.id..'\n'..#pod.members..' / '..pod.max..' · '..({'Легко','Обычно','Хардкор'})[pod.difficulty]
  local names={}; for _,p in ipairs(pod.members) do table.insert(names,{id=p.UserId,name=p.DisplayName}) end
  for _,p in ipairs(pod.members) do send(p,'pod',{id=pod.id,members=names,max=pod.max,difficulty=pod.difficulty,access=pod.access,leader=pod.members[1].UserId}) end
 end
@@ -239,11 +239,11 @@ end
 joinPod=function(p,id)
  local pod=pods[id]; if not profiles[p] or not pod or sessions[p] or pod.starting then return end
  if table.find(pod.members,p) then podUpdate(pod); return end
- if #pod.members>=pod.max then toast(p,'Куб заполнен'); return end
+ if #pod.members>=pod.max then toast(p,'Зал сбора заполнен'); return end
  local leader=pod.members[1]
  if leader and pod.access=='friends' then
   local ok,isFriend=pcall(function() return p:IsFriendsWithAsync(leader.UserId) end)
-  if not ok or not isFriend then toast(p,'Этот куб открыт только друзьям лидера'); return end
+  if not ok or not isFriend then toast(p,'Этот зал открыт только друзьям лидера'); return end
  end
  if leader and pod.access=='invite' and not (pod.invited and pod.invited[p.UserId]) then toast(p,'Нужно приглашение лидера'); return end
  leavePod(p); table.insert(pod.members,p); teleport(p,pod.part.Position+Vector3.new(0,4,0)); podUpdate(pod)
@@ -490,5 +490,6 @@ RunService.Heartbeat:Connect(function(dt)
   end
  end end end
 end)
+workspace:SetAttribute('MountainverseBuildId',C.BuildId)
 workspace:SetAttribute('MountainverseServerReady',true)
-print('MOUNTAINVERSE / server ready; persistence='..tostring(store~=nil))
+print('MOUNTAINVERSE '..C.BuildId..' / server ready; persistence='..tostring(store~=nil))

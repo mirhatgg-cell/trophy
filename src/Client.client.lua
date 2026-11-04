@@ -26,7 +26,7 @@ local function button(parent,value,callback,color)
 end
 local function fire(action,data) event:FireServer(action,data or {}) end
 local header=frame(gui,UDim2.new(1,-24,0,65),UDim2.fromOffset(12,12),ink)
-local logo=text(header,'M O U N T A I N V E R S E',20,mint); logo.Position=UDim2.fromOffset(16,5); logo.Size=UDim2.new(.54,0,0,29)
+local logo=text(header,'MOUNTAINVERSE  /  '..C.BuildId,18,mint); logo.Position=UDim2.fromOffset(16,5); logo.Size=UDim2.new(.54,0,0,29)
 local wallet=text(header,'Загрузка коллекции…',14,muted); wallet.Position=UDim2.fromOffset(16,34); wallet.Size=UDim2.new(1,-25,0,22)
 local round=frame(gui,UDim2.new(.6,0,0,132),UDim2.new(.2,0,0,86),ink); round.Visible=false
 local roundName=text(round,'',19,mint); roundName.Position=UDim2.fromOffset(12,5); roundName.Size=UDim2.new(1,-24,0,32)
@@ -73,7 +73,7 @@ render=function()
  if page=='games' then
   clear('THE FIFTY SUMMITS')
   paragraph('Каждый заход — 5 случайных испытаний. Победа: +60 монет и фигурка; участие: +15; полный заход: +40. Равный счёт разрешается случайно.',muted,72)
-  for _,g in ipairs(C.Games) do row(g.id..'. '..g.name..'\n'..g.rules,isAdmin and 'Тест игры' or 'Выбрать',function() selection=g.id; if isAdmin then show('admin') else toast('В кубах игры выбираются случайно') end end) end
+  for _,g in ipairs(C.Games) do row(g.id..'. '..g.name..'\n'..g.rules,isAdmin and 'Тест игры' or 'Выбрать',function() selection=g.id; if isAdmin then show('admin') else toast('В залах сбора испытания выбираются случайно') end end) end
  elseif page=='shop' then
   clear('ЛАВКА КУРАТОРА')
   paragraph('Только игровые монеты. Косметика не меняет силу персонажа. Повторное нажатие снимает аксессуар или след.',muted)
@@ -100,15 +100,15 @@ render=function()
   local values={wins=profile.wins,runs=profile.runs,unique=unique,mutations=profile.mutationCount}
   for _,a in ipairs(C.Achievements) do paragraph((profile.achievements[a.id] and '✓ ' or '○ ')..a.name..'   '..math.min(values[a.field],a.goal)..'/'..a.goal..'\n+'..a.reward..' ◈ · титул «'..a.title..'»',profile.achievements[a.id] and mint or muted,58) end
  elseif page=='pod' then
-  clear('КУБ // КОМАНДА')
+  clear('ЗАЛ СБОРА // КОМАНДА')
   if not currentPod then
-   paragraph('Подойди к светящемуся кубу в лобби или выбери его здесь. Лидер задаёт сложность, размер команды и доступ.',muted,70)
-   for i=1,4 do button(content,'Войти в куб '..i,function() fire('join',{id=i}) end) end
+   paragraph('Войди в северный зал сбора на площади или выбери его здесь. Лидер задаёт сложность, размер команды и доступ.',muted,70)
+   for i=1,4 do button(content,'Войти в зал '..i,function() fire('join',{id=i}) end) end
    return
   end
   local d=currentPod; local leader=d.leader==p.UserId
   local names={}; for _,m in ipairs(d.members) do table.insert(names,m.name..(m.id==d.leader and ' ★' or '')) end
-  paragraph('Куб '..d.id..' · '..#d.members..'/'..d.max..'\n'..table.concat(names,'  /  '),mint,70)
+  paragraph('Зал '..d.id..' · '..#d.members..'/'..d.max..'\n'..table.concat(names,'  /  '),mint,70)
   if leader then
    row('Лимит игроков: '..d.max,'Следующий',function() fire('configure',{max=d.max%8+1}) end)
    row('Сложность: '..({'Легко','Обычно','Хардкор'})[d.difficulty],'Изменить',function() fire('configure',{difficulty=d.difficulty%3+1}) end)
@@ -118,9 +118,9 @@ render=function()
    for _,other in ipairs(Players:GetPlayers()) do if other~=p then button(content,'Пригласить '..other.DisplayName,function() fire('configure',{invite=other.UserId}); toast('Приглашение отправлено') end) end end
    button(content,'НАЧАТЬ ЗАХОД · 5 ИГР',function() fire('start'); window.Visible=false; page='' end)
   else paragraph('Лидер выбирает настройки и запускает заход. Можно начать и неполной командой.',muted) end
-  button(content,'Выйти из куба',function() fire('leave') end,Color3.fromRGB(255,146,146))
+  button(content,'Покинуть зал сбора',function() fire('leave') end,Color3.fromRGB(255,146,146))
  elseif page=='admin' then
-  clear('ЛАБОРАТОРИЯ ПРОТОТИПА')
+  clear('ИНСПЕКЦИЯ MOUNTAINVERSE')
   if not isAdmin then paragraph('Админка доступна создателю, списку AdminUserIds и всем тестерам в Studio.'); return end
   paragraph('Команды работают на сервере. Награды в опубликованной игре сохраняются. В Studio без API — только на время теста.',muted,64)
   row('Игра '..selection..'/50\n'..C.Games[selection].name,'Следующая',function() selection=selection%50+1; render() end)
@@ -140,8 +140,8 @@ render=function()
   button(content,'Вылечить себя',function() adminCommand('heal') end)
  elseif page=='help' then
   clear('MOUNTAINVERSE / ARRIVAL')
-  paragraph('Музей странных побед. Собирай друзей в кубах лобби, переживи пять испытаний и принеси домой новый экспонат.',mint,76)
-  paragraph('Управление Roblox: WASD / стик — ходьба, пробел / кнопка прыжка — прыжок. Взаимодействие с кубом: E или экранная подсказка.',white,76)
+  paragraph('Музей странных побед. Собирай друзей в залах площади, переживи пять испытаний и принеси домой новый экспонат.',mint,76)
+  paragraph('Управление Roblox: WASD / стик — ходьба, пробел / кнопка прыжка — прыжок. Взаимодействие с терминалом: E или экранная подсказка.',white,76)
   paragraph('Тетрис: один случайный игрок — архитектор сверху. Кнопки на экране выбирают столбец, поворот и сброс. Клавиши A/D, R, F тоже работают. Остальные уклоняются внизу. Сеты +40, устранения +55, выживание +2/сек.',white,110)
   paragraph('В остальных играх решают выживание и сбор искр (+15). Победить может только выживший. При одинаковом счёте победителя выбирает жребий; если все погибли, трофей не выдаётся.',muted,90)
   paragraph('Ушёл из игры — текущий заход прерывается для тебя. Респаун после смерти не возвращает в раунд. Следующий раунд снова собирает команду.',muted,76)
@@ -197,7 +197,7 @@ event.OnClientEvent:Connect(function(kind,data)
   end
  elseif kind=='invite' then
   local box=frame(gui,UDim2.fromOffset(300,100),UDim2.new(.5,-150,.5,-50),panelColor)
-  local t=text(box,data.name..' зовёт в куб '..data.id,16); t.Position=UDim2.fromOffset(10,5); t.Size=UDim2.new(1,-20,0,40)
+  local t=text(box,data.name..' зовёт в зал '..data.id,16); t.Position=UDim2.fromOffset(10,5); t.Size=UDim2.new(1,-20,0,40)
   local yes=button(box,'Войти',function() fire('join',{id=data.id}); box:Destroy() end); yes.Position=UDim2.fromOffset(10,50); yes.Size=UDim2.new(.5,-15,0,38)
   local no=button(box,'Позже',function() box:Destroy() end,muted); no.Position=UDim2.new(.5,5,0,50); no.Size=UDim2.new(.5,-15,0,38)
   task.delay(15,function() if box.Parent then box:Destroy() end end)

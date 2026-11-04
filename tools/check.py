@@ -8,6 +8,7 @@ from build_place import build,ROOT
 from world_spec import records
 p=argparse.ArgumentParser();p.add_argument('--luau',required=True);p.add_argument('--compiler',required=True);args=p.parse_args()
 place=ROOT/'Mountainverse.rbxlx';assert place.read_bytes()==build(),'Place is stale'
+assert (ROOT/'Trophy.rbxlx').read_bytes()==place.read_bytes(),'Old download link must serve the same current game'
 xml=ET.parse(place)
 expected={k:k+'.lua' for k in ('Catalog','TrophyIcons','Trials','Elimination','Infrastructure')}
 expected.update(TrophyServer='Server.server.lua',TrophyClient='Client.client.lua')
@@ -19,6 +20,7 @@ for item in xml.iter('Item'):
  if name in expected:
   assert props.find("ProtectedString[@name='Source']").text==(ROOT/'src'/expected[name]).read_text();seen.add(name)
 assert seen==expected.keys();assert parts>4000
+assert any(x.find("Properties/string[@name='Name']").text=='MountainverseBuildId' for x in xml.iter('Item')),'Visible build identity is missing'
 for i in range(1,51):assert f'TrialGate{i}' in names and f'Stand{i}' in names
 assert len(records())==50 and len({r['kind'] for r in records()})==50
 subprocess.run([args.compiler,'--null',*[str(ROOT/'src'/f) for f in expected.values()]],check=True)
