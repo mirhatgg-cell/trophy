@@ -32,7 +32,7 @@ This document preserves the user's review and work state across quota interrupti
 
 ## Checkpoint
 
-Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`; revision 0.2: `aa0b3da`; revision 0.3: `f35a6f5`; revision 0.4: `6135092`. Current revision **0.5** implements the [queue, item and illustrated identity review](REVISION_05.md), embedded in `build/PROBA.rbxlx`. Twenty-two paintings are embedded with a GUI fallback, 23 item models are revised, and visitor promotion uses independent travel deadlines. Friend animation packs and independent identity selections remain in place. The build retains 100 items, 91 geometry families, three buildings and six plots. External previews are not Studio screenshots.
+Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`; revision 0.2: `aa0b3da`; revision 0.3: `f35a6f5`; revision 0.4: `6135092`; revision 0.5: `9d24354`. Current revision **0.6** implements the [font and internal animation review](REVISION_06.md), embedded in `build/PROBA.rbxlx`. Nine distinct typeface/material choices include Cyrillic alternatives; live geometry animates aura contents, portrait mechanisms and background contents while paintings remain fixed. HTML/GIF replay is generated from actual Luau states. The 0.5 queue/item changes and previous gameplay remain in place. External previews are not Studio screenshots.
 
 Automated checks now include real client constructors/actions, R6/R15 animation control paths, individual visitor clocks, layout bounds and physical collection regression tests with an intentional optional-FX failure, alongside existing economy/visits/rarity/save/receipt/XML/API/geometry checks. Exact current output is produced by `python tools/run_checks.py`.
 

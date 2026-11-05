@@ -245,7 +245,7 @@ return Challenges
 </ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014584"><Properties><string name="Name">Config</string><ProtectedString name="Source">local Config = {}
 
 Config.Name = "PROBA · Appraisal &amp; Antiques"
-Config.Version = "0.5.0"
+Config.Version = "0.6.0"
 Config.ProfessionIconAtlas = 0 -- Upload assets/icons/professions.png and set its genuine Roblox image ID.
 Config.ProfessionIconCell = { width = 0, height = 0 } -- Filled from the generated atlas manifest.
 Config.ProfessionIconRects = {{47,172,335,392}, {449,200,369,361}, {876,173,375,398}, {1303,187,385,378}, {1747,185,378,372}} -- Optional exact source rectangles from assets/manifest.json.
@@ -509,6 +509,25 @@ local Identity={Nametags={
 	{id="tag_tide",name="Liquid Glass",style="tide",price=1800,color={101,230,248},description="Прозрачные волны, бегущие каустики и капли стекла."},
 },ById={}}
 for _,d in ipairs(Identity.Nametags)do Identity.ById[d.id]=d end
+-- Typeface and letter treatment belong to the purchased tag, not the title.
+-- Cyrillic alternatives avoid relying on missing glyphs in Latin display fonts.
+Identity.Typefaces={
+	plain={font="BuilderSansMedium",unicodeFont="BuilderSansMedium",treatment="clean",name="Builder Sans"},
+	volt={font="Michroma",unicodeFont="Jura",treatment="discharge",name="Michroma / Jura"},
+	vesper={font="GrenzeGotisch",unicodeFont="SourceSansItalic",treatment="ink",name="Grenze Gotisch"},
+	boreal={font="JosefinSans",unicodeFont="Ubuntu",treatment="silk",name="Josefin Sans / Ubuntu"},
+	ember={font="Bangers",unicodeFont="Oswald",treatment="molten",name="Bangers / Oswald"},
+	prism={font="FredokaOne",unicodeFont="GothamBlack",treatment="facet",name="Fredoka One"},
+	astrolabe={font="Merriweather",unicodeFont="Merriweather",treatment="engraved",name="Merriweather"},
+	maple={font="Kalam",unicodeFont="AmaticSC",treatment="handwritten",name="Kalam / Amatic SC"},
+	tide={font="Nunito",unicodeFont="Nunito",treatment="liquid",name="Nunito"},
+}
+function Identity.Typeface(style,name)
+	local d=Identity.Typefaces[style]or Identity.Typefaces.plain
+	local cyrillic=false
+	for _,code in utf8.codes(name)do if code&gt;=0x400 and code&lt;=0x52f then cyrillic=true;break end end
+	return if cyrillic then d.unicodeFont else d.font,d.treatment
+end
 Identity.BackgroundStyles={card_paper="neutral",card_velvet="velvet",card_starmap="starmap",card_boreal="boreal",card_eclipse="eclipse",card_horizon="horizon",card_tidal="tidal",card_geode="geode",card_forge="forge"}
 Identity.FrameStyles={frame_plain="plain",frame_brass="brass",frame_mechanical="circuit",frame_astral="comet",frame_facet="facet",frame_wings="wings",frame_rift="rift"}
 Identity.LegacyTags={eye="tag_volt",fake="tag_vesper",diplomat="tag_tide",collector="tag_prism",archivist="tag_astrolabe"}
@@ -2955,7 +2974,279 @@ function Art.Draw(parent,key,w,h)
 	return root
 end
 return Art
-</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014609"><Properties><string name="Name">IdentityFX</string><ProtectedString name="Source">-- Three independent identity layers, with original painted anime artwork.
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014609"><Properties><string name="Name">CosmeticMotion</string><ProtectedString name="Source">-- Continuous geometry animation. Paintings stay fixed; paths, flame tongues,
+-- crystal faces, leaf silhouettes and droplets have independent lifecycles.
+local Motion={}
+local WHITE=Color3.fromRGB(242,249,255)
+local function new(cls,props,parent)local n=Instance.new(cls);for k,v in pairs(props)do n[k]=v end;n.Parent=parent;return n end
+local function frame(parent,name,color,alpha)
+	return new("Frame",{Name=name,BorderSizePixel=0,BackgroundColor3=color,BackgroundTransparency=alpha or 0,
+		AnchorPoint=Vector2.new(.5,.5),Size=UDim2.fromOffset(1,1)},parent)
+end
+local function round(p,r)new("UICorner",{CornerRadius=UDim.new(0,r)},p)end
+local function line(p,x,y,xx,yy,width,alpha)
+	local dx,dy=xx-x,yy-y
+	p.Position=UDim2.fromOffset((x+xx)/2,(y+yy)/2);p.Size=UDim2.fromOffset(math.max(.05,math.sqrt(dx*dx+dy*dy)+.5),math.max(.05,width))
+	p.Rotation=math.deg(math.atan2(dy,dx));p.BackgroundTransparency=math.clamp(alpha or 0,0,1)
+end
+local function dot(parent,name,size,color)
+	local p=frame(parent,name,color);p.Size=UDim2.fromOffset(size,size);round(p,99);return p
+end
+local function ribbon(parent,name,count,a,b)
+	local nodes={}
+	for i=1,count do
+		local shade=a:Lerp(b,i/count)
+		local glow=frame(parent,name.."_Body",shade,.3);round(glow,99)
+		new("UIGradient",{Rotation=90,Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(.25,.5),NumberSequenceKeypoint.new(.5,0),NumberSequenceKeypoint.new(.75,.5),NumberSequenceKeypoint.new(1,1)})},glow)
+		local core=frame(parent,name.."_Edge",shade:Lerp(WHITE,.28),.3);round(core,99)
+		nodes[i]={glow,core}
+	end
+	return function(sample,alpha)
+		for i,pair in ipairs(nodes)do
+			local u,v=(i-1)/count,i/count
+			local x,y,width=sample(u);local xx,yy,ww=sample(v)
+			local thickness=math.max(.1,(width+ww)*.5)
+			line(pair[1],x,y,xx,yy,thickness,(alpha or 0)+.12)
+			line(pair[2],x,y,xx,yy,math.max(.35,thickness*.18),(alpha or 0)+.17)
+		end
+	end
+end
+local function polygon(parent,name,rows)
+	local nodes={};for i=1,rows do nodes[i]=frame(parent,name,WHITE)end
+	return function(points,color,alpha)
+		local lo,hi=math.huge,-math.huge
+		for _,p in ipairs(points)do lo=math.min(lo,p[2]);hi=math.max(hi,p[2])end
+		local height=math.max(.05,(hi-lo)/rows)
+		for i,p in ipairs(nodes)do
+			local y=lo+(i-.5)*height;local crosses={}
+			for j,a in ipairs(points)do local b=points[j%#points+1]
+				if(a[2]&lt;=y and b[2]&gt;y)or(b[2]&lt;=y and a[2]&gt;y)then table.insert(crosses,a[1]+(y-a[2])*(b[1]-a[1])/(b[2]-a[2]))end
+			end
+			table.sort(crosses);p.Visible=#crosses&gt;=2
+			if #crosses&gt;=2 then
+				p.Position=UDim2.fromOffset((crosses[1]+crosses[#crosses])/2,y);p.Size=UDim2.fromOffset(math.max(.1,crosses[#crosses]-crosses[1]+.25),height+.25)
+				p.BackgroundColor3=color;p.BackgroundTransparency=alpha or 0
+			end
+		end
+	end
+end
+local function crystal(parent,name,size)
+	local faces={};for i=1,4 do faces[i]=polygon(parent,name.."_Facet",8)end
+	return function(x,y,angle,phase)
+		local width=size*(.40+math.abs(math.cos(phase))*.60)
+		local center=width*math.sin(phase)*.74
+		local function p(xx,yy)return{x+xx*math.cos(angle)-yy*math.sin(angle),y+xx*math.sin(angle)+yy*math.cos(angle)}end
+		local top,left,right,bottom,mid=p(0,-size*1.45),p(-width,0),p(width,0),p(0,size*1.45),p(center,size*.1)
+		faces[1]({top,left,mid},Color3.fromRGB(118,200,244),.08)
+		faces[2]({top,mid,right},Color3.fromRGB(233,208,255),.04)
+		faces[3]({bottom,mid,left},Color3.fromRGB(161,111,212),.12)
+		faces[4]({bottom,right,mid},WHITE,.08+math.sin(phase)^2*.25)
+	end
+end
+local function bolt(parent,w,h,small)
+	local nodes={}
+	for i=1,(small and 16 or 26)do
+		local a=frame(parent,"DischargeGlow",Color3.fromRGB(92,143,255));local b=frame(parent,"DischargeCore",WHITE)
+		nodes[i]={a,b}
+	end
+	return function(t)
+		local epoch=math.floor(t*7);local progress=(t*1.8)%1
+		for i,pair in ipairs(nodes)do
+			local n=#nodes;local u,v=(i-1)/n,i/n
+			local function point(k)
+				local x=w*(.05+k*.90)
+				local y=h*(.45+math.sin(k*math.pi*2)*.32)+math.sin(k*39+epoch*17)*h*.10
+				return x,y
+			end
+			local x,y=point(u);local xx,yy=point(v)
+			local alpha=if u&lt;progress*1.8 and progress&lt;.75 then .12+progress*.7 else 1
+			line(pair[1],x,y,xx,yy,3.8,alpha+.22);line(pair[2],x,y,xx,yy,.85,alpha)
+		end
+	end
+end
+local function fire(parent,w,h,count,radial)
+	local tongues={}
+	for i=1,count do tongues[i]=ribbon(parent,"FlameTongue",7,Color3.fromRGB(255,73,33),Color3.fromRGB(255,228,133))end
+	return function(t)
+		for i,draw in ipairs(tongues)do
+			local age=(t*(.72+i*.021)+i*.173)%1;local life=math.sin(age*math.pi)
+			local length=h*(.34+.30*life)*(if radial then .65 else 1)
+			local x=w*(.08+i/(count+1)*.84);local y=h*.88
+			local angle=radial and i/count*math.pi*2 or 0
+			draw(function(u)
+				local bend=math.sin(u*3.2+t*3+i)*u*6
+				local yy=-u*length;local width=(3.5+life*3)*math.sin(math.pi*u)^.55*(.3+life*.7)
+				if radial then
+					local r=h*.23
+					return w*.76+math.cos(angle)*(r-yy)+math.sin(angle)*bend,h*.43+math.sin(angle)*(r-yy)-math.cos(angle)*bend,width
+				end
+				return x+bend,y+yy,width
+			end,.16+(1-life)*.58)
+		end
+	end
+end
+local function aurora(parent,w,h,count)
+	local bands={};for i=1,count do bands[i]=ribbon(parent,"AuroraRibbon",20,Color3.fromRGB(65,210,177),Color3.fromRGB(190,151,255))end
+	return function(t)
+		for i,draw in ipairs(bands)do draw(function(u)
+			local y=h*(.42+(i-(count+1)/2)*.20)+math.sin(u*6+t*.9+i)*h*.18+math.sin(u*13-t*.6)*h*.06
+			return w*(.025+u*.95),y,(4+i*1.4)*math.sin(u*math.pi)^.5+.3
+		end,.32+i*.025)end
+	end
+end
+local function smoke(parent,w,h,count,cloud)
+	local curls={};for i=1,count do curls[i]=ribbon(parent,cloud and"CloudCurl"or"InkTendril",14,
+		cloud and Color3.fromRGB(83,113,153)or Color3.fromRGB(48,25,82),cloud and Color3.fromRGB(177,174,210)or Color3.fromRGB(195,79,228))end
+	return function(t)
+		for i,draw in ipairs(curls)do
+			local age=(t*.12+i/count)%1
+			local side=if i%2==0 then-1 else 1
+			draw(function(u)
+				local a=u*4.8+i*1.3+t*.38
+				local cx=w*(if side&lt;0 then .16 else .84);local cy=h*.5
+				local rx=w*(.10+.07*age);local ry=h*(.16+.10*age)
+				return cx+math.cos(a)*rx*(.4+.6*u),cy+math.sin(a)*ry+math.sin(t*.8+u*4+i)*h*.06,(4+age*7)*math.sin(u*math.pi)^.45+.1
+			end,.33+age*.30)
+		end
+	end
+end
+local function constellation(parent,w,h,count)
+	local stars,links,tail={},{},{}
+	for i=1,count do stars[i]=dot(parent,"OrbitingStar",2+i%2,WHITE);links[i]=frame(parent,"ConstellationTrace",Color3.fromRGB(173,188,246),.65)end
+	for i=1,9 do tail[i]=dot(parent,"CometTrail",math.max(1,3-i*.22),Color3.fromRGB(246,219,153))end
+	return function(t)
+		local points={}
+		for i,p in ipairs(stars)do
+			local a=i*math.pi*2/count+t*(.15+i*.009)
+			local x=w*.5+math.cos(a)*w*.43;local y=h*.5+math.sin(a)*h*(.24+.06*math.sin(t*.3))
+			points[i]={x,y};p.Position=UDim2.fromOffset(x,y);p.BackgroundTransparency=.05+math.sin(t*1.8+i)^2*.6
+		end
+		for i,p in ipairs(links)do local a,b=points[i],points[i%count+1];local grow=math.clamp((t*.28+i/count)%1*2,0,1)
+			line(p,a[1],a[2],a[1]+(b[1]-a[1])*grow,a[2]+(b[2]-a[2])*grow,.65,.58+(1-grow)*.37)
+		end
+		for i,p in ipairs(tail)do local a=t*.9-i*.055;p.Position=UDim2.fromOffset(w*.5+math.cos(a)*w*.46,h*.5+math.sin(a)*h*.38);p.BackgroundTransparency=.05+i*.075 end
+	end
+end
+local function leaves(parent,w,h,count)
+	local shapes,veins={},{ }
+	for i=1,count do shapes[i]=polygon(parent,"MapleLeaf",12);veins[i]=frame(parent,"LeafMidrib",Color3.fromRGB(132,62,35),.15)end
+	local outline={{0,-1},{.22,-.42},{.6,-.77},{.56,-.18},{1,-.23},{.48,.28},{.52,.67},{.12,.47},{0,1},{-.12,.47},{-.52,.67},{-.48,.28},{-1,-.23},{-.56,-.18},{-.6,-.77},{-.22,-.42}}
+	return function(t)
+		for i,draw in ipairs(shapes)do
+			local age=(t*(.08+i*.004)+i/count)%1;local turn=t*(.65+i*.03)+i
+			local x=(i/count)*w+math.sin(t*.7+i)*w*.065-age*w*.1;local y=-6+(age+age*age)*.5*(h+12)
+			local sx=(2.7+i%3)*(.25+.75*math.abs(math.cos(turn)));local sy=4+i%2
+			local angle=math.sin(turn*.7)*.8
+			local function point(xx,yy)return{x+xx*sx*math.cos(angle)-yy*sy*math.sin(angle),y+xx*sx*math.sin(angle)+yy*sy*math.cos(angle)}end
+			local points={};for _,p in ipairs(outline)do table.insert(points,point(p[1],p[2]))end
+			draw(points,(if i%2==0 then Color3.fromRGB(240,156,62)else Color3.fromRGB(197,71,57)):Lerp(Color3.fromRGB(255,207,106),math.abs(math.cos(turn))*.25),.04)
+			local a,b=point(0,-.6),point(0,.75);line(veins[i],a[1],a[2],b[1],b[2],.6,.22)
+		end
+	end
+end
+local function water(parent,w,h,count)
+	local waves={ribbon(parent,"WaterCrest",21,Color3.fromRGB(40,171,206),Color3.fromRGB(190,247,255)),ribbon(parent,"WaterUndertow",19,Color3.fromRGB(85,203,239),WHITE)}
+	local drops,rings,strokes={},{},{}
+	for i=1,count do
+		drops[i]=dot(parent,"BallisticDrop",2+i%2,Color3.fromRGB(195,249,255))
+		local ring=frame(parent,"ImpactRipple",WHITE,1);round(ring,99)
+		strokes[i]=new("UIStroke",{Color=Color3.fromRGB(139,232,247),Thickness=.8,Transparency=.3},ring);rings[i]=ring
+	end
+	return function(t)
+		for i,draw in ipairs(waves)do draw(function(u)
+			return u*w,h*(.62+(i-1)*.17)+math.sin(u*8-t*1.7+i)*h*.11,(2.8+math.sin(u*5+t)^2*2)*math.sin(u*math.pi)^.4+.2
+		end,.28+(i-1)*.13)end
+		for i,p in ipairs(drops)do
+			local age=(t*.38+i/count)%1;local flight=math.min(1,age/.73)
+			local x=(i/(count+1))*w+math.sin(i)*flight*9;local base=h*.72
+			p.Position=UDim2.fromOffset(x,base-h*.90*flight+h*.90*flight*flight);p.Visible=age&lt;.73
+			local ripple=math.max(0,(age-.73)/.27);local ring=rings[i];ring.Position=UDim2.fromOffset(x,base)
+			ring.Size=UDim2.fromOffset(2+ripple*18,1+ripple*5);ring.Visible=age&gt;=.73;strokes[i].Transparency=.2+ripple*.8
+		end
+	end
+end
+
+function Motion.Build(parent,style,w,h,small)
+	local root=new("Frame",{Name="LiveEffectGeometry",BackgroundTransparency=1,Size=UDim2.fromOffset(w,h)},parent)
+	root:SetAttribute("MotionStyle",style)
+	local update=function()end
+	if style=="volt"then update=bolt(root,w,h,small)
+	elseif style=="vesper"then update=smoke(root,w,h,small and 2 or 4)
+	elseif style=="boreal"then update=aurora(root,w,h,small and 2 or 3)
+	elseif style=="ember"then update=fire(root,w,h,small and 4 or 9)
+	elseif style=="prism"then
+		local pieces={};for i=1,(small and 3 or 5)do pieces[i]=crystal(root,"TurningPrism",small and 3 or 4.5)end
+		update=function(t)for i,draw in ipairs(pieces)do local a=i/#pieces*math.pi*2+t*.20
+			draw(w*.5+math.cos(a)*w*.43,h*.5+math.sin(a)*h*.30,math.sin(t*.4+i)*.32,t*.9+i*.8)
+		end end
+	elseif style=="astrolabe"then update=constellation(root,w,h,small and 5 or 8)
+	elseif style=="maple"then update=leaves(root,w,h,small and 3 or 6)
+	elseif style=="tide"then update=water(root,w,h,small and 3 or 5)
+	end
+	return root,function(t)root:SetAttribute("MotionTime",t);update(t)end
+end
+
+function Motion.Background(parent,style,w,h)
+	local root=new("Frame",{Name="LivingBackground",BackgroundTransparency=1,Position=UDim2.fromOffset(w*.40,0),Size=UDim2.fromOffset(w*.6,h),ClipsDescendants=true},parent)
+	root:SetAttribute("MotionStyle",style)
+	local ww=w*.6;local update
+	if style=="velvet"then update=leaves(root,ww,h,7)
+	elseif style=="starmap"then update=constellation(root,ww,h,8)
+	elseif style=="boreal"then update=aurora(root,ww,h,4)
+	elseif style=="eclipse"then update=fire(root,ww,h,12,true)
+	elseif style=="horizon"then update=smoke(root,ww,h,3,true)
+	elseif style=="tidal"then update=water(root,ww,h,6)
+	elseif style=="geode"then
+		local rays={};for i=1,6 do rays[i]=frame(root,"RefractedRay",i%2==0 and Color3.fromRGB(195,156,255)or WHITE,.5)end
+		update=function(t)for i,p in ipairs(rays)do local age=(t*.15+i/6)%1;local x=ww*(.36+i*.07);local y=h*(.35+i%2*.22)
+			line(p,x,y,x+math.sin(i*1.4)*age*25,y+age*h*.5,.7,.45+age*.55)
+		end end
+	elseif style=="forge"then update=fire(root,ww,h,8)
+	else update=function()end end
+	return root,function(t)root:SetAttribute("MotionTime",t);update(t)end
+end
+
+function Motion.Frame(parent,style,cx,cy,radius,w,h)
+	local root=new("Frame",{Name="FrameMechanism",BackgroundTransparency=1,Size=UDim2.fromOffset(w,h)},parent)
+	root:SetAttribute("MotionStyle",style)
+	local update=function()end
+	if style=="wings"then
+		local feathers={};for i=1,12 do feathers[i]=ribbon(root,"FlexingFeather",6,Color3.fromRGB(224,177,111),WHITE)end
+		update=function(t)for i,draw in ipairs(feathers)do
+			local side=if i&lt;=6 then-1 else 1;local j=(i-1)%6
+			draw(function(u)
+				local flex=math.sin(t*1.7-j*.23)*u*u*3.4
+				return cx+side*(radius*.70+u*(8+j*1.7)+math.sin(u*math.pi)*2),cy+radius*.48-u*(radius*1.28-j*3.3)+flex,math.sin(u*math.pi)^.55*(2.7-j*.18)+.2
+			end,.18)end end
+	elseif style=="circuit"then
+		local gears={}
+		for side=-1,1,2 do
+			local gear=new("Frame",{Name="MechanicalRotor",BackgroundTransparency=1,AnchorPoint=Vector2.new(.5,.5),Size=UDim2.fromOffset(14,14),Position=UDim2.fromOffset(cx+side*radius*.75,cy-radius*.65)},root)
+			for i=1,10 do local a=i*math.pi/5;local tooth=frame(gear,"RotorTooth",Color3.fromRGB(126,196,235));tooth.Position=UDim2.fromOffset(7+math.cos(a)*5.7,7+math.sin(a)*5.7);tooth.Size=UDim2.fromOffset(2.6,2.7);tooth.Rotation=math.deg(a)end
+			local hub=dot(gear,"EnergyBearing",5,WHITE);hub.Position=UDim2.fromOffset(7,7)
+			gears[side]=gear
+		end
+		update=function(t)for side,gear in pairs(gears)do gear.Rotation=t*side*45 end end
+	elseif style=="facet"then
+		local pieces={};for i=1,5 do pieces[i]=crystal(root,"CrownCrystal",3.5)end
+		update=function(t)for i,draw in ipairs(pieces)do local a=math.pi+(i-1)/4*math.pi
+			draw(cx+math.cos(a)*(radius+6),cy+math.sin(a)*(radius+6),a+math.pi/2,t*.5+i*.6)
+		end end
+	elseif style=="rift"then
+		local live,step=Motion.Build(root,"vesper",radius*2+16,radius*2+16,true);live.Position=UDim2.fromOffset(cx-radius-8,cy-radius-8);update=step
+	elseif style=="comet"then
+		local tails={};for i=1,14 do tails[i]=dot(root,"FrameCometTail",math.max(1,3.5-i*.17),i&lt;4 and WHITE or Color3.fromRGB(229,191,116))end
+		update=function(t)for i,p in ipairs(tails)do local a=t*.72-i*.035;p.Position=UDim2.fromOffset(cx+math.cos(a)*(radius+6),cy+math.sin(a)*(radius+6));p.BackgroundTransparency=.06+i*.055 end end
+	elseif style=="brass"then
+		local leavesSet={};for i=1,10 do leavesSet[i]=frame(root,"UnfoldingLaurel",Color3.fromRGB(238,200,115));round(leavesSet[i],3)end
+		update=function(t)for i,p in ipairs(leavesSet)do local a=i/10*math.pi*2;local opening=math.sin(t*.9-i*.4)*.5+.5
+			p.Position=UDim2.fromOffset(cx+math.cos(a)*(radius+3),cy+math.sin(a)*(radius+3));p.Size=UDim2.fromOffset(2+opening*1.2,5);p.Rotation=math.deg(a)+35+opening*12;p.BackgroundTransparency=.18+(1-opening)*.35
+		end end
+	end
+	return root,function(t)root:SetAttribute("MotionTime",t);update(t)end
+end
+return Motion
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014610"><Properties><string name="Name">IdentityFX</string><ProtectedString name="Source">-- Three independent identity layers, with original painted anime artwork.
 local RunService=game:GetService("RunService")
 local Players=game:GetService("Players")
 local Rep=game:GetService("ReplicatedStorage")
@@ -2963,6 +3254,8 @@ local Identity=require(Rep.Shared.Identity)
 local Decor=require(Rep.Shared.Decor)
 local Config=require(Rep.Shared.Config)
 local Art=require(script.Parent.Artwork)
+local Motion=require(script.Parent.CosmeticMotion)
+local Typography=require(script.Parent.NameTypography)
 local FX={}
 local actors,portraits={},{}
 local WHITE=Color3.fromRGB(241,248,255)
@@ -2982,64 +3275,18 @@ local function label(parent,value,size,c,w,h)
 		TextStrokeColor3=INK,TextStrokeTransparency=.18,TextTruncate=Enum.TextTruncate.AtEnd,
 		TextXAlignment=Enum.TextXAlignment.Left,Size=UDim2.fromOffset(w,h)},parent)
 end
-local function gradient(o,a,b)
-	if o:IsA("TextLabel")then o.TextColor3=WHITE else o.BackgroundColor3=WHITE end
-	return new("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,a),ColorSequenceKeypoint.new(.48,WHITE),ColorSequenceKeypoint.new(1,b)})},o)
-end
 local function animate(root,step)step(0);table.insert(actors,{root=root,step=step})end
-local function spark(parent,size,c)
-	local root=canvas(parent,"Glint",size*2,size*2)
-	local v=at(rect(root,size*.25,size*1.5,c),size,size);v.Rotation=28
-	local h=at(rect(root,size*1.1,size*.2,WHITE),size,size);h.Rotation=28
-	return root
-end
-local function particles(parent,style,c,w,h,count)
-	local nodes={}
-	for i=1,count do
-		local p
-		if style=="maple"then
-			p=canvas(parent,"FallingPetal",8,9)
-			for j=1,3 do local leaf=at(rect(p,3,5,c),1+j*1.7,4);round(leaf,3);leaf.Rotation=-50+j*25 end
-		elseif style=="tide"or style=="tidal"then
-			p=rect(parent,2+i%3,3+i%3,c,.2);round(p,8)
-		elseif style=="vesper"or style=="rift"or style=="eclipse"then
-			p=rect(parent,2,5,c,.28);p.Rotation=40
-		else p=spark(parent,1.8+i%3,c)end
-		nodes[i]=p
-	end
-	return function(t)
-		for i,p in ipairs(nodes)do
-			local u=(t*(if style=="ember"or style=="forge"then .19 else .07)+i/count)%1
-			local x=((i*47)%101)/101*w
-			local y=h*(1-u)
-			if style=="maple"or style=="velvet"then x+=math.sin(t+i)*7;y=u*h
-			elseif style=="volt"then x=(i%2==0 and .1 or .9)*w+math.sin(t*9+i)*7;y=(i/count)*h
-			elseif style=="prism"or style=="astrolabe"then local a=t*.25+i*math.pi*.71;x=w*.5+math.cos(a)*w*.44;y=h*.5+math.sin(a)*h*.39
-			else x+=math.sin(t*.7+i)*5 end
-			p.Position=UDim2.fromOffset(x,y);p.Rotation=math.sin(t+i)*25
-			if p:IsA("Frame")and p.Name~="Glint"and p.Name~="FallingPetal"then p.BackgroundTransparency=.1+math.sin(u*math.pi)^2*.55 end
-		end
-	end
-end
 
-function FX.Nametag(parent,id,name,w,h)
-	h=h or 48;local d=Identity.ById[id]or Identity.ById.tag_plain;local c=color(d.color)
+function FX.Nametag(parent,id,name,w,h,centered)
+	h=h or 48;local d=Identity.ById[id]or Identity.ById.tag_plain
 	local root=canvas(parent,"NicknameEffect",w,h);root:SetAttribute("NametagId",d.id)
 	local art=d.style~="plain"and Art.Draw(root,"aura_"..d.style,w+8,h+17)or nil
-	local motes=if d.style~="plain"then particles(root,d.style,c,w,h,6)else function()end
-	local shadow=label(root,name,17,INK,w-16,30);shadow.Name="NicknameShadow";shadow.Position=UDim2.fromOffset(9,h*.5-13);shadow.TextStrokeTransparency=0
-	local nick=label(root,name,17,WHITE,w-16,30);nick.Name="Nickname";nick.Font=Enum.Font.GothamBlack;nick.Position=UDim2.fromOffset(8,h*.5-15)
-	local sheen=gradient(nick,if d.style=="plain"then WHITE else c,WHITE)
+	if art then art.Position=UDim2.fromOffset(-4,-8);art.GroupTransparency=.58 end
+	local _,effect=Motion.Build(root,d.style,w,h,false)
+	local _,letters=Typography.Build(root,d,name,w,h,centered==true)
+	if d.style=="plain"then return root end
 	animate(root,function(t)
-		if art then
-			local speed=if d.style=="volt"then 2.4 elseif d.style=="ember"then 1.7 else .75
-			local breath=math.sin(t*speed)*.017
-			art.Size=UDim2.fromOffset((w+8)*(1+breath),h+17+math.sin(t*speed+.8)*2)
-			art.Position=UDim2.fromOffset(-4-breath*w*.5,-8+math.sin(t*.8)*1.2)
-			art.Rotation=math.sin(t*.6)*1.4
-			art.GroupTransparency=if d.style=="volt"then .02+(math.sin(t*9)^12)*.22 else .04+math.sin(t*.9)^2*.08
-		end
-		motes(t);sheen.Offset=Vector2.new(math.sin(t*.7)*.42,0)
+		effect(t);letters(t)
 	end)
 	return root
 end
@@ -3049,18 +3296,15 @@ function FX.Title(parent,id,w,centered)
 	local styles={eye={"volt",{108,226,255}},fake={"vesper",{238,130,255}},diplomat={"tide",{116,229,244}},collector={"ember",{255,217,128}},archivist={"astrolabe",{191,172,255}}}
 	local style=styles[d.id];local c=style and color(style[2])or Color3.fromRGB(179,194,215)
 	local root=canvas(parent,"TitleEffect",w,27);root:SetAttribute("TitleId",d.id)
-	local flare=style and Art.Draw(root,"aura_"..style[1],math.min(w-4,174),25)or nil
 	local title=label(root,d.name,10,c,w-12,23);title.Name="TitleLabel";title.Position=UDim2.fromOffset(6,0)
+	if style then local face=Identity.Typeface(style[1],d.name);title.Font=Enum.Font[face]end
 	if centered then title.TextXAlignment=Enum.TextXAlignment.Center end
 	if not style then return root end
-	local sheen=gradient(title,c,WHITE)
-	-- Keep the small subtitle legible while giving prestige a living crest/glint.
-	local seal=spark(root,3,c)
-	animate(root,function(t)
-		if flare then flare.Position=UDim2.fromOffset(if centered then(w-math.min(w-4,174))/2 else 0,1+math.sin(t)*.6);flare.GroupTransparency=.65+math.sin(t*.7)^2*.13 end
-		seal.Position=UDim2.fromOffset(5+((t*.18)%1)*(w-14),18+math.sin(t*2)*2);seal.Rotation=t*25
-		sheen.Offset=Vector2.new(math.sin(t*.9)*.55,0)
-	end)
+	local geometry,step=Motion.Build(root,style[1],math.min(w-4,174),24,true)
+	geometry.Position=UDim2.fromOffset(if centered then(w-math.min(w-4,174))/2 else 0,0)
+	-- Keep the subtitle above its independent animated geometry.
+	title.ZIndex=2
+	animate(root,step)
 	return root
 end
 
@@ -3074,14 +3318,12 @@ function FX.Background(parent,id,w,h)
 		return root
 	end
 	local painting=Art.Draw(root,"banner_"..style,w+16,h+8)
+	if painting then painting.Position=UDim2.fromOffset(-8,-4)end
+	local _,step=Motion.Background(root,style,w,h)
 	-- A restrained directional scrim preserves text contrast over the illustration.
 	local scrim=at(rect(root,w,h,INK),w/2,h/2)
 	new("UIGradient",{Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,.12),NumberSequenceKeypoint.new(.45,.58),NumberSequenceKeypoint.new(1,.93)})},scrim)
-	local motes=particles(root,if style=="velvet"then"maple"else style,color(d.color):Lerp(WHITE,.45),w,h,5)
-	animate(root,function(t)
-		if painting then painting.Position=UDim2.fromOffset(-8+math.sin(t*.17)*4,-4+math.cos(t*.13)*2)end
-		motes(t*.7)
-	end)
+	animate(root,step)
 	return root
 end
 
@@ -3094,17 +3336,9 @@ function FX.Frame(parent,id,cx,cy,radius,w,h)
 	end
 	local size=(radius*2+24)*(if style=="wings"then 1.06 else 1)
 	local painting=Art.Draw(root,"frame_"..style,size,size)
-	local gleams={};for i=1,3 do gleams[i]=spark(root,1.8+i%2,c:Lerp(WHITE,.5))end
-	animate(root,function(t)
-		if painting then
-			painting.Position=UDim2.fromOffset(cx-size/2,cy-size/2+math.sin(t*.7)*.55)
-			painting.Rotation=if style=="rift"then math.sin(t*.35)*2 else math.sin(t*.4)*.7
-			painting.GroupTransparency=if style=="rift"then .04+math.sin(t*.8)^2*.09 else .02
-		end
-		for i,p in ipairs(gleams)do local a=t*(if style=="comet"then .6 else .16)+i*math.pi*.7
-			p.Position=UDim2.fromOffset(cx+math.cos(a)*(radius+5)-3,cy+math.sin(a)*(radius+5)-3);p.Rotation=t*30
-		end
-	end)
+	if painting then painting.Position=UDim2.fromOffset(cx-size/2,cy-size/2);painting.GroupTransparency=.12 end
+	local _,step=Motion.Frame(root,style,cx,cy,radius,w,h)
+	animate(root,step)
 	return root
 end
 
@@ -3138,8 +3372,7 @@ end
 function FX.World(parent,options)
 	local root=canvas(parent,"WorldIdentity",230,80)
 	local width=math.min(224,math.max(110,(utf8.len(options.name)or 12)*10+32))
-	local tag=FX.Nametag(root,options.nametag or"tag_plain",options.name,width,50);tag.Position=UDim2.fromOffset((230-width)/2,0);tag.Nickname.TextXAlignment=Enum.TextXAlignment.Center
-	tag.NicknameShadow.TextXAlignment=Enum.TextXAlignment.Center
+	local tag=FX.Nametag(root,options.nametag or"tag_plain",options.name,width,50,true);tag.Position=UDim2.fromOffset((230-width)/2,0)
 	local title=FX.Title(root,options.title or"trainee",218,true);title.Position=UDim2.fromOffset(6,52)
 	return root
 end
@@ -3167,7 +3400,7 @@ RunService.RenderStepped:Connect(function(dt)
 	for i=#actors,1,-1 do local a=actors[i];if not a.root.Parent then table.remove(actors,i)elseif isVisible(a.root)then a.step(now)end end
 end)
 return FX
-</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014610"><Properties><string name="Name">IdentityUI</string><ProtectedString name="Source">local Rep=game:GetService("ReplicatedStorage")
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014611"><Properties><string name="Name">IdentityUI</string><ProtectedString name="Source">local Rep=game:GetService("ReplicatedStorage")
 local Catalog=require(Rep.Shared.Identity)
 local Decor=require(Rep.Shared.Decor)
 local Config=require(Rep.Shared.Config)
@@ -3203,6 +3436,10 @@ function UI.Build(parent,profile,player,w,state,api)
 	local current
 	for _,d in ipairs(choices)do if d.id==state[key]then current=d;break end end
 	current=current or choices[1];state[key]=current.id
+	if state.tab=="tag"then
+		local face=Catalog.Typeface(current.style,player.DisplayName)
+		description="Шрифт: "..face.." · эффект букв и аура входят в nametag."
+	end
 	text(parent,description,11,C.muted,UDim2.fromOffset(0,y),UDim2.fromOffset(w,31));y+=36
 	local available=owned[current.id]==true
 	local cost=if current.premium then"Robux"else tostring(current.price or 0).." монет"
@@ -3227,7 +3464,7 @@ function UI.Build(parent,profile,player,w,state,api)
 	end
 end
 return UI
-</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014611"><Properties><string name="Name">InstrumentUI</string><ProtectedString name="Source">local UserInputService=game:GetService("UserInputService")
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014612"><Properties><string name="Name">InstrumentUI</string><ProtectedString name="Source">local UserInputService=game:GetService("UserInputService")
 local UI={}
 function UI.Build(parent,record,api)
 	local c=record.challenge
@@ -3298,7 +3535,7 @@ function UI.Build(parent,record,api)
 	if c.ready then button(layer,"Записать показания",46,63,216,39,function()step("finish")end,"primary")end
 end
 return UI
-</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014612"><Properties><string name="Name">ItemEffects</string><ProtectedString name="Source">local RunService=game:GetService("RunService")
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014613"><Properties><string name="Name">ItemEffects</string><ProtectedString name="Source">local RunService=game:GetService("RunService")
 local CollectionService=game:GetService("CollectionService")
 local Effects={}
 function Effects.Start()
@@ -3345,7 +3582,119 @@ function Effects.Start()
 	end)
 end
 return Effects
-</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014613"><Properties><string name="Name">RigMotion</string><ProtectedString name="Source">local RunService=game:GetService("RunService")
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014614"><Properties><string name="Name">NameTypography</string><ProtectedString name="Source">-- Real per-tag fonts and animated letter materials; no common gradient overlay.
+local TextService=game:GetService("TextService")
+local Identity=require(game.ReplicatedStorage.Shared.Identity)
+local Type={}
+local WHITE=Color3.fromRGB(241,248,255)
+local INK=Color3.fromRGB(7,10,24)
+local function new(cls,props,parent)local n=Instance.new(cls);for k,v in pairs(props)do n[k]=v end;n.Parent=parent;return n end
+local function text(parent,value,size,font,color,w,h)
+	return new("TextLabel",{Name="Glyph",BackgroundTransparency=1,Text=value,TextColor3=color,TextSize=size,Font=font,AutoLocalize=false,
+		TextStrokeColor3=INK,TextStrokeTransparency=.18,TextXAlignment=Enum.TextXAlignment.Left,
+		Size=UDim2.fromOffset(w,h)},parent)
+end
+local function characters(value)
+	local out={}
+	if utf8.graphemes then for first,last in utf8.graphemes(value)do table.insert(out,value:sub(first,last))end
+	else for _,code in utf8.codes(value)do
+		local cluster=utf8.char(code)
+		if code&gt;=0x300 and code&lt;=0x36f and #out&gt;0 then out[#out]..=cluster else table.insert(out,cluster)end
+	end end
+	return out
+end
+local function measure(value,size,font)
+	local ok,result=pcall(function()return TextService:GetTextSize(value,size,font,Vector2.new(4096,64)).X end)
+	return if ok and(result&gt;0 or value=="")then result else (utf8.len(value)or #value)*size*.59
+end
+local function joinedScript(value)
+	for _,c in utf8.codes(value)do if(c&gt;=0x600 and c&lt;=0x8ff)or(c&gt;=0x900 and c&lt;=0xdff)then return true end end
+	return false
+end
+function Type.Build(parent,definition,name,w,h,centered)
+	local fontName,treatment=Identity.Typeface(definition.style,name)
+	local font=Enum.Font[fontName];local size=18
+	local available=math.max(20,w-20)
+	local measured=measure(name,size,font)
+	if measured&gt;available then size=math.max(10,18*available/measured);measured=measure(name,size,font)end
+	local left=if centered then(w-measured)/2 else 9
+	local top=h/2-14
+	local root=new("Frame",{Name="Nickname",BackgroundTransparency=1,Size=UDim2.fromOffset(w,h)},parent)
+	root:SetAttribute("Typeface",fontName);root:SetAttribute("LetterTreatment",treatment)
+	root:SetAttribute("DisplayName",name)
+	local baseColor=Color3.fromRGB(unpack(definition.color))
+	-- Connected scripts retain shaping/ligatures in one TextLabel. Decorative
+	-- material changes still run, while the name itself is never scrambled.
+	local units=if treatment=="clean"or joinedScript(name)then{name}else characters(name)
+	local glyphs={};local prefix="";local previous=0
+	for index,character in ipairs(units)do
+		prefix..=character;local advance=measure(prefix,size,font)
+		local width=measure(character,size,font)+7
+		local holder=new("Frame",{Name="Letter_"..index,BackgroundTransparency=1,Position=UDim2.fromOffset(left+previous,top),Size=UDim2.fromOffset(width,30)},root)
+		local shadow=text(holder,character,size,font,INK,width,30);shadow.Name="InkShadow";shadow.Position=UDim2.fromOffset(1,1)
+		local back=text(holder,character,size,font,baseColor,width,30);back.Name="MaterialEdge";back.Position=UDim2.fromOffset(-.6,0)
+		back.TextStrokeColor3=baseColor;back.TextStrokeTransparency=.62
+		local front=text(holder,character,size,font,WHITE,width,30);front.Name="LetterFace"
+		local fill,shine
+		if treatment=="liquid"then
+			fill=new("Frame",{Name="WaterFill",BackgroundTransparency=1,ClipsDescendants=true,Size=UDim2.fromOffset(width,16),Position=UDim2.fromOffset(0,14)},holder)
+			local copy=text(fill,character,size,font,Color3.fromRGB(76,210,239),width,30);copy.Position=UDim2.fromOffset(0,-14)
+			shine=new("Frame",{Name="WaterMeniscus",BackgroundTransparency=1,ClipsDescendants=true,Size=UDim2.fromOffset(width,2)},holder)
+			local line=text(shine,character,size,font,WHITE,width,30);line.TextStrokeTransparency=1
+		end
+		table.insert(glyphs,{holder=holder,front=front,edge=back,shadow=shadow,x=left+previous,fill=fill,shine=shine,index=index})
+		previous=advance
+	end
+	local function update(t)
+		root:SetAttribute("MaterialPhase",t)
+		for i,g in ipairs(glyphs)do
+			local phase=t*2.4-i*.47;local face=g.front
+			if treatment=="clean"then face.TextColor3=WHITE;g.edge.Visible=false
+			elseif treatment=="discharge"then
+				local live=math.sin(t*5-i*.9)&gt;.78
+				face.TextColor3=if live then WHITE else Color3.fromRGB(135,222,255)
+				g.edge.Position=UDim2.fromOffset(if live then math.sin(t*32+i)*1.6 else-.6,0)
+				g.edge.TextStrokeTransparency=if live then .12 else .65
+			elseif treatment=="ink"then
+				face.TextColor3=Color3.fromRGB(228,187,247);face.TextTransparency=.05+(math.sin(phase*.6)*.5+.5)*.21
+				g.edge.Position=UDim2.fromOffset(math.sin(phase*.7)*1.1,1)
+				g.edge.TextColor3=Color3.fromRGB(183,59,222);g.edge.TextTransparency=.3+math.sin(phase)^2*.3
+			elseif treatment=="silk"then
+				g.holder.Position=UDim2.fromOffset(g.x,top+math.sin(phase*.65)*1.3)
+				face.TextColor3=Color3.fromRGB(111,245,209):Lerp(Color3.fromRGB(205,184,255),math.sin(phase*.5)*.5+.5)
+				g.edge.TextStrokeTransparency=.70
+			elseif treatment=="molten"then
+				face.TextColor3=Color3.fromRGB(255,196,91):Lerp(Color3.fromRGB(255,244,185),math.sin(t*5+i*1.7)^2)
+				g.edge.TextStrokeColor3=Color3.fromRGB(255,83,42);g.edge.TextStrokeTransparency=.12+math.sin(t*3+i)^2*.35
+				g.edge.Position=UDim2.fromOffset(0,1.2+math.sin(phase)*.35)
+			elseif treatment=="facet"then
+				local flash=(t*.55-i/#glyphs)%1
+				face.TextColor3=if flash&lt;.13 then WHITE else Color3.fromRGB(237,188,255)
+				g.edge.TextColor3=if i%2==0 then Color3.fromRGB(88,229,255)else Color3.fromRGB(255,116,191)
+				g.edge.Position=UDim2.fromOffset(if flash&lt;.13 then-1.7 else-.7,if flash&lt;.13 then .6 else 0)
+			elseif treatment=="engraved"then
+				face.TextColor3=Color3.fromRGB(245,224,173);g.edge.TextColor3=Color3.fromRGB(129,149,218)
+				g.edge.Position=UDim2.fromOffset(-.7,-.7);g.shadow.Position=UDim2.fromOffset(.9,1.1)
+				g.edge.TextStrokeTransparency=.38+math.sin(phase*.55)^2*.38
+				face.TextColor3=face.TextColor3:Lerp(WHITE,math.max(0,math.sin(t*1.6-i*.65))^8*.7)
+			elseif treatment=="handwritten"then
+				face.TextColor3=Color3.fromRGB(255,214,155);g.edge.TextColor3=Color3.fromRGB(176,92,48)
+				g.holder.Rotation=math.sin(i*1.7)*2.3
+				g.edge.TextTransparency=.25+math.sin(phase*.3)^2*.22
+			elseif treatment=="liquid"then
+				face.TextColor3=Color3.fromRGB(220,248,255)
+				local level=14+math.sin(t*2.2-i*.55)*3
+				g.fill.Position=UDim2.fromOffset(0,level);g.fill.Size=UDim2.fromOffset(g.fill.Size.X.Offset,30-level)
+				g.fill.Glyph.Position=UDim2.fromOffset(0,-level)
+				g.shine.Position=UDim2.fromOffset(0,level-.7);g.shine.Glyph.Position=UDim2.fromOffset(0,-level+.7)
+			end
+		end
+	end
+	update(0)
+	return root,update
+end
+return Type
+</ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00014615"><Properties><string name="Name">RigMotion</string><ProtectedString name="Source">local RunService=game:GetService("RunService")
 local CollectionService=game:GetService("CollectionService")
 local Motion={}
 function Motion.Start()
@@ -3403,4 +3752,4 @@ function Motion.Start()
 	end)
 end
 return Motion
-</ProtectedString></Properties></Item></Item></Item><Item class="StarterGui" referent="RBX00014614"><Properties><string name="Name">StarterGui</string></Properties></Item><Item class="Lighting" referent="RBX00014615"><Properties><string name="Name">Lighting</string><float name="ClockTime">15.2</float><float name="Brightness">2.3</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.65</float><float name="EnvironmentSpecularScale">0.8</float><Color3 name="Ambient"><R>0.45</R><G>0.49</G><B>0.47</B></Color3><Color3 name="OutdoorAmbient"><R>0.59</R><G>0.63</G><B>0.62</B></Color3><float name="ShadowSoftness">0.3</float><float name="GeographicLatitude">38</float></Properties><Item class="Atmosphere" referent="RBX00014616"><Properties><string name="Name">Atmosphere</string><float name="Density">0.18</float><float name="Offset">0.15</float><float name="Haze">1.2</float><float name="Glare">0.2</float><Color3 name="Color"><R>0.82</R><G>0.85</G><B>0.78</B></Color3><Color3 name="Decay"><R>0.51</R><G>0.59</G><B>0.62</B></Color3></Properties></Item><Item class="BloomEffect" referent="RBX00014617"><Properties><string name="Name">SubtleBloom</string><float name="Intensity">0.12</float><float name="Size">20</float><float name="Threshold">1.8</float></Properties></Item><Item class="ColorCorrectionEffect" referent="RBX00014618"><Properties><string name="Name">WarmPaperGrade</string><float name="Brightness">0.015</float><float name="Contrast">0.08</float><float name="Saturation">-0.07</float><Color3 name="TintColor"><R>1</R><G>0.98</G><B>0.92</B></Color3></Properties></Item></Item><Item class="SoundService" referent="RBX00014619"><Properties><string name="Name">SoundService</string><token name="AmbientReverb">0</token></Properties></Item><Item class="Players" referent="RBX00014620"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">true</bool></Properties></Item></roblox>
+</ProtectedString></Properties></Item></Item></Item><Item class="StarterGui" referent="RBX00014616"><Properties><string name="Name">StarterGui</string></Properties></Item><Item class="Lighting" referent="RBX00014617"><Properties><string name="Name">Lighting</string><float name="ClockTime">15.2</float><float name="Brightness">2.3</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.65</float><float name="EnvironmentSpecularScale">0.8</float><Color3 name="Ambient"><R>0.45</R><G>0.49</G><B>0.47</B></Color3><Color3 name="OutdoorAmbient"><R>0.59</R><G>0.63</G><B>0.62</B></Color3><float name="ShadowSoftness">0.3</float><float name="GeographicLatitude">38</float></Properties><Item class="Atmosphere" referent="RBX00014618"><Properties><string name="Name">Atmosphere</string><float name="Density">0.18</float><float name="Offset">0.15</float><float name="Haze">1.2</float><float name="Glare">0.2</float><Color3 name="Color"><R>0.82</R><G>0.85</G><B>0.78</B></Color3><Color3 name="Decay"><R>0.51</R><G>0.59</G><B>0.62</B></Color3></Properties></Item><Item class="BloomEffect" referent="RBX00014619"><Properties><string name="Name">SubtleBloom</string><float name="Intensity">0.12</float><float name="Size">20</float><float name="Threshold">1.8</float></Properties></Item><Item class="ColorCorrectionEffect" referent="RBX00014620"><Properties><string name="Name">WarmPaperGrade</string><float name="Brightness">0.015</float><float name="Contrast">0.08</float><float name="Saturation">-0.07</float><Color3 name="TintColor"><R>1</R><G>0.98</G><B>0.92</B></Color3></Properties></Item></Item><Item class="SoundService" referent="RBX00014621"><Properties><string name="Name">SoundService</string><token name="AmbientReverb">0</token></Properties></Item><Item class="Players" referent="RBX00014622"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">true</bool></Properties></Item></roblox>

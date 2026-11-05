@@ -11,6 +11,25 @@ local Identity={Nametags={
 	{id="tag_tide",name="Liquid Glass",style="tide",price=1800,color={101,230,248},description="Прозрачные волны, бегущие каустики и капли стекла."},
 },ById={}}
 for _,d in ipairs(Identity.Nametags)do Identity.ById[d.id]=d end
+-- Typeface and letter treatment belong to the purchased tag, not the title.
+-- Cyrillic alternatives avoid relying on missing glyphs in Latin display fonts.
+Identity.Typefaces={
+	plain={font="BuilderSansMedium",unicodeFont="BuilderSansMedium",treatment="clean",name="Builder Sans"},
+	volt={font="Michroma",unicodeFont="Jura",treatment="discharge",name="Michroma / Jura"},
+	vesper={font="GrenzeGotisch",unicodeFont="SourceSansItalic",treatment="ink",name="Grenze Gotisch"},
+	boreal={font="JosefinSans",unicodeFont="Ubuntu",treatment="silk",name="Josefin Sans / Ubuntu"},
+	ember={font="Bangers",unicodeFont="Oswald",treatment="molten",name="Bangers / Oswald"},
+	prism={font="FredokaOne",unicodeFont="GothamBlack",treatment="facet",name="Fredoka One"},
+	astrolabe={font="Merriweather",unicodeFont="Merriweather",treatment="engraved",name="Merriweather"},
+	maple={font="Kalam",unicodeFont="AmaticSC",treatment="handwritten",name="Kalam / Amatic SC"},
+	tide={font="Nunito",unicodeFont="Nunito",treatment="liquid",name="Nunito"},
+}
+function Identity.Typeface(style,name)
+	local d=Identity.Typefaces[style]or Identity.Typefaces.plain
+	local cyrillic=false
+	for _,code in utf8.codes(name)do if code>=0x400 and code<=0x52f then cyrillic=true;break end end
+	return if cyrillic then d.unicodeFont else d.font,d.treatment
+end
 Identity.BackgroundStyles={card_paper="neutral",card_velvet="velvet",card_starmap="starmap",card_boreal="boreal",card_eclipse="eclipse",card_horizon="horizon",card_tidal="tidal",card_geode="geode",card_forge="forge"}
 Identity.FrameStyles={frame_plain="plain",frame_brass="brass",frame_mechanical="circuit",frame_astral="comet",frame_facet="facet",frame_wings="wings",frame_rift="rift"}
 Identity.LegacyTags={eye="tag_volt",fake="tag_vesper",diplomat="tag_tide",collector="tag_prism",archivist="tag_astrolabe"}

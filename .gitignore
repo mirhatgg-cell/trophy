@@ -6,3 +6,4 @@ build/ui-state.json
 build/*.blend
 build/item-scene.json
 build/identity/
+build/cosmetic-motion.json

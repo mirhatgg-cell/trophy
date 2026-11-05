@@ -34,8 +34,7 @@ expect(hasView,"An owned item must open a visible 3D inspection, not just a carr
 networkState:Fire({kind="open",panel="titles"});services.RunService.RenderStepped:Fire(.1);capture("titles")
 local animated
 for _,n in ipairs(allNodes)do if n.Name=="TitleEffect"and n:GetAttribute("TitleId")=="archivist"and shown(n)then animated=n;break end end
-local moving
-for _,n in ipairs(animated:GetChildren())do if n.ClassName=="Frame"then moving=n;break end end
+local moving=animated:FindFirstChild("OrbitingStar",true)
 local beforeX,beforeY=moving.Position.X.Offset,moving.Position.Y.Offset;clock+=.6;services.RunService.RenderStepped:Fire(.1)
 expect(moving.Position.X.Offset~=beforeX or moving.Position.Y.Offset~=beforeY,"Prestige titles must change actual ornament geometry, not only a text color")
 click("Nametag")

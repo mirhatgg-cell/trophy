@@ -5,6 +5,15 @@ local function check(v,why)n+=1;assert(v,why)end
 local ids,styles={},{}
 check(#Identity.Nametags==9,"The nickname department needs nine complete authored choices")
 for _,d in ipairs(Identity.Nametags)do check(not ids[d.id]and not styles[d.style]and d.price>=0 and #d.description>10,"Every nametag must have its own design, identity and server price");ids[d.id]=true;styles[d.style]=true end
+local latin,cyrillic,treatments={},{},{}
+for _,d in ipairs(Identity.Nametags)do
+	local a,material=Identity.Typeface(d.style,"red_blink")
+	local b=Identity.Typeface(d.style,"Оценщик")
+	check(type(a)=="string"and not latin[a],"Each Latin name style must select a distinct actual typeface")
+	check(type(b)=="string"and not cyrillic[b],"Cyrillic names must retain distinct supported alternatives")
+	check(type(material)=="string"and not treatments[material],"Each tag needs its own letter material, not one shared gradient")
+	latin[a]=true;cyrillic[b]=true;treatments[material]=true
+end
 for id in pairs(Identity.BackgroundStyles)do check(Decor.ById[id]and Decor.ById[id].category=="card","Every background design must be purchasable and persistable")end
 for id in pairs(Identity.FrameStyles)do check(Decor.ById[id]and Decor.ById[id].category=="frame","Every portrait frame must have a valid catalog definition")end
 local legacy={title="collector",ownedDecor={},equippedDecor={card="card_velvet",frame="frame_brass"}}

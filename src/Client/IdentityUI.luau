@@ -34,6 +34,10 @@ function UI.Build(parent,profile,player,w,state,api)
 	local current
 	for _,d in ipairs(choices)do if d.id==state[key]then current=d;break end end
 	current=current or choices[1];state[key]=current.id
+	if state.tab=="tag"then
+		local face=Catalog.Typeface(current.style,player.DisplayName)
+		description="Шрифт: "..face.." · эффект букв и аура входят в nametag."
+	end
 	text(parent,description,11,C.muted,UDim2.fromOffset(0,y),UDim2.fromOffset(w,31));y+=36
 	local available=owned[current.id]==true
 	local cost=if current.premium then"Robux"else tostring(current.price or 0).." монет"

@@ -2,7 +2,9 @@
 import html,json
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from preview_fonts import prepare,css
 root=Path(__file__).resolve().parents[1]
+preview_fonts=prepare();font_css=css(preview_fonts)
 snapshots=json.loads((root/'build/ui-state.json').read_text())
 def rgb(c,alpha=1):
     if not c:return 'transparent'
@@ -26,6 +28,10 @@ with sync_playwright()as p:
             align='left'if str(o.get('align','')).endswith('Left')else'center'
             bold='bold'if 'Bold'in str(o.get('font'))or'Black'in str(o.get('font'))else'normal'
             style+=f'text-align:{align};font-weight:{bold};'
+            face=str(o.get('font','')).split('.')[-1]
+            if face in preview_fonts:style+=f'font-family:"Preview_{face}",sans-serif;'
+            if o.get('textAlpha'):style+=f'opacity:{(1-o["textAlpha"])*(1-o.get("groupAlpha",0))};'
+            if o.get('textStroke')and o.get('strokeAlpha',1)<1:style+=f'text-shadow:0 1px 1px {rgb(o["textStroke"],1-o["strokeAlpha"])};'
             if not o.get('wrap'):style+='white-space:nowrap;text-overflow:ellipsis;'
             if o['rotation']:style+=f'transform:rotate({o["rotation"]}deg);'
             if o.get('groupAlpha'):style+=f'opacity:{1-o["groupAlpha"]};'
@@ -45,6 +51,6 @@ with sync_playwright()as p:
             content=html.escape(o.get('text','')).replace('\n','<br>')
             if o['class']=='ViewportFrame':content='<span style="opacity:.4;font-size:10px;color:#a0acb7">3D VIEWPORT / отображается движком Roblox</span>'
             blocks.append('<div style="'+style+'"><span>'+content+'</span></div>')
-        source='<!doctype html><meta charset="utf-8"><style>html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 40%,#5a6572,#343f49);font-family:"DejaVu Sans",sans-serif}div{position:absolute;box-sizing:border-box;display:flex;align-items:center;overflow:hidden}div>span{width:100%;padding:0 3px;line-height:1.22}aside{position:absolute;left:44%;top:46%;width:28%;font-size:11px;color:#a0acb7;line-height:1.8}</style><aside>ПРОВЕРКА КОНСТРУКТОРОВ UI<br>Геометрия мира и эффекты 3D здесь не рендерятся.<br>Это не скриншот Roblox Studio.</aside>'+''.join(blocks)
+        source='<!doctype html><meta charset="utf-8"><style>'+font_css+'html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 40%,#5a6572,#343f49);font-family:"DejaVu Sans",sans-serif}div{position:absolute;box-sizing:border-box;display:flex;align-items:center;overflow:hidden}div>span{width:100%;padding:0 3px;line-height:1.22}aside{position:absolute;left:44%;top:46%;width:28%;font-size:11px;color:#a0acb7;line-height:1.8}</style><aside>ПРОВЕРКА КОНСТРУКТОРОВ UI<br>Геометрия мира и эффекты 3D здесь не рендерятся.<br>Это не скриншот Roblox Studio.</aside>'+''.join(blocks)
         page.set_content(source);page.screenshot(path=str(root/f'build/ui-{state["name"]}.png'));page.close()
     browser.close()

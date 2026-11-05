@@ -48,6 +48,14 @@ local oldMultiply=cfMeta.__mul
 cfMeta.__mul=function(a,b)local cf=oldMultiply(a,b);cf.angle=(a.angle or 0)+(b.angle or 0);return cf end
 services.TweenService.Create=function(_,o,_,properties)return{Play=function()for k,v in pairs(properties)do o[k]=v end end,Cancel=function()end}end
 for _,name in ipairs({"UserInputService","StarterGui"})do services[name]=node(name,name,gameMock)end
+services.TextService=node("TextService","TextService",gameMock)
+local previewFontMetrics={}
+services.TextService.GetTextSize=function(_,value,size,font)
+	local metrics=previewFontMetrics[font]
+	if metrics and metrics[value]then return Vector.new(metrics[value]*size,size)end
+	local factor=if font==enum.Font.Michroma then .72 elseif font==enum.Font.Bangers then .50 else .59
+	return Vector.new((utf8.len(value)or #value)*size*factor,size)
+end
 services.UserInputService.GetFocusedTextBox=function(self)return self.focused end
 services.StarterGui.SetCoreGuiEnabled=function()end
 services.RunService.RenderStepped=signal();services.RunService.PreSimulation=signal()
@@ -84,17 +92,27 @@ local function json(v)
 	local out={};if #v>0 then for _,a in ipairs(v)do table.insert(out,json(a))end;return"["..table.concat(out,",").."]"end
 	for k,a in pairs(v)do table.insert(out,json(tostring(k))..":"..json(a))end;return"{"..table.concat(out,",").."}"
 end
-local function capture(name)
+local captureIds={};local nextCaptureId=0
+local function capture(name,compactPaint)
 	local objects={}
 	for _,n in ipairs(allNodes)do
 		if guiClasses[n.ClassName]and shown(n)then
 			local artAncestor=n.Parent;local insideArt=false
 			while artAncestor do
-				if artAncestor:GetAttribute("ArtworkKey")and artAncestor:GetAttribute("ArtworkBackend")=="EditableImage"then insideArt=true;break end
+				if artAncestor:GetAttribute("ArtworkKey")and(compactPaint or artAncestor:GetAttribute("ArtworkBackend")=="EditableImage")then insideArt=true;break end
 				artAncestor=artAncestor.Parent
 			end
 			if insideArt then continue end
 			local p,s=n.AbsolutePosition,n.AbsoluteSize
+			local cx,cy=p.X+s.X/2,p.Y+s.Y/2;local rotation=n.Rotation;local rotator=n.Parent
+			while rotator do
+				if guiClasses[rotator.ClassName]and rotator.Rotation~=0 then
+					local a,b=rotator.AbsolutePosition,rotator.AbsoluteSize;local x,y=a.X+b.X/2,a.Y+b.Y/2
+					local angle=math.rad(rotator.Rotation);local dx,dy=cx-x,cy-y
+					cx=x+dx*math.cos(angle)-dy*math.sin(angle);cy=y+dx*math.sin(angle)+dy*math.cos(angle);rotation+=rotator.Rotation
+				end
+				rotator=rotator.Parent
+			end
 			local color=n.BackgroundColor3;local ink=n.TextColor3;local r=n:FindFirstChildOfClass("UICorner")
 			local clip={x=0,y=0,w=dimensions.w,h=dimensions.h};local ancestor=n.Parent
 			while ancestor do
@@ -112,9 +130,11 @@ local function capture(name)
 				if group.ClassName=="CanvasGroup"then opacity*=1-(group.GroupTransparency or 0)end
 				group=group.Parent
 			end
-			table.insert(objects,{class=n.ClassName,x=p.X,y=p.Y,w=s.X,h=s.Y,text=if n.ClassName=="TextBox"and n.Text==""then n.PlaceholderText or""else n.Text,size=n.TextSize or 12,
+			if not captureIds[n]then nextCaptureId+=1;captureIds[n]=nextCaptureId end
+			table.insert(objects,{id=captureIds[n],nodeName=n.Name,class=n.ClassName,x=cx-s.X/2,y=cy-s.Y/2,w=s.X,h=s.Y,text=if n.ClassName=="TextBox"and n.Text==""then n.PlaceholderText or""else n.Text,size=n.TextSize or 12,
 				alpha=n.BackgroundTransparency,color=color,ink=ink,radius=r and(r.CornerRadius.Offset+r.CornerRadius.Scale*math.min(s.X,s.Y))or 0,
-				z=n.ZIndex,rotation=n.Rotation,clip=clip,border=border and border.Color,thickness=border and border.Thickness or 0,align=n.TextXAlignment,font=n.Font,
+				z=n.ZIndex,rotation=rotation,clip=clip,border=border and border.Color,thickness=border and border.Thickness or 0,align=n.TextXAlignment,font=n.Font,
+				textAlpha=n.TextTransparency or 0,textStroke=n.TextStrokeColor3,strokeAlpha=n.TextStrokeTransparency or 1,
 				gradient=g and{colors=g.Color,alpha=g.Transparency,rotation=g.Rotation or 0},wrap=n.TextWrapped==true,
 				artwork=n:GetAttribute("ArtworkKey"),backend=n:GetAttribute("ArtworkBackend"),groupAlpha=1-opacity})
 		end

@@ -183,6 +183,8 @@ if api_path.exists():
         require(any(m['Name']==method for m in classes['Players']['Members']),f'Unavailable avatar API: {method}')
     import re
     enum_names={e['Name']:{v['Name'] for v in e['Items']} for e in api['Enums']}
+    for face in re.findall(r'(?:font|unicodeFont)="([A-Za-z0-9_]+)"',expected_sources['Identity']):
+        require(face in enum_names['Font'],f'Unavailable nametag typeface: {face}')
     for source in expected_sources.values():
         for typ,value in re.findall(r'Enum\.(\w+)\.(\w+)',source):require(typ in enum_names and value in enum_names[typ],f'Unavailable script enum Enum.{typ}.{value}')
     print('PASS current Roblox API schema and enum validation')
