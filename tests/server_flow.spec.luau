@@ -155,4 +155,24 @@ local offline=makePlayer("Offline",791)
 expect(Profiles.sessions[offline].mode=="session" and Profiles.loaded[offline].cash==750,"Storage outage must produce an explicitly unsaved starter session")
 fakeStore.fail=false
 studio=true
+-- A collection must remain visible even when an optional appearance effect fails.
+local sampleModel=models.h03
+local body=node("Part","VisibleBody",sampleModel);body.Size=Vector.new(2,3,2);body.Transparency=0;body.CFrame=CF.new(0,1.5,0)
+local appearance=env.require(shared.Appearance);local normalStyle=appearance.Apply
+appearance.Apply=function()error("Simulated optional appearance failure")end
+desk(bob,plotB)
+action(bob,"Admin",{command="samples",id="h03",uniqueness=.1})
+appearance.Apply=normalStyle
+expect(#pB.inventory==8 and #plotB.OwnedCollection:GetChildren()==8,"All eight comparison specimens must be real displayed collection models")
+for _,model in ipairs(plotB.OwnedCollection:GetChildren())do
+	local p=model.VisibleBody
+	expect(p~=nil and p.Transparency==0 and p.Anchored==true,"A visual effect error must never hide or discard the item body")
+	expect(p.Size.Y<=1.551 and p.Position.Y>4,"Display scaling and placement must keep the visible geometry above the plinth")
+end
+local first=pB.inventory[1];local displayed=plotB.OwnedCollection:FindFirstChild("Owned_"..first.uid)
+bob.Character:PivotTo(displayed:GetPivot())
+displayed.PrimaryPart.CollectionInspect.Triggered:Fire(bob)
+expect(latest(bob,"exhibit").item.uid==first.uid,"E at a real exhibit must open its own inspectable item")
+action(bob,"Admin",{command="pause"});expect(latest(bob,"snapshot").timersPaused==true,"F8 pause must reach the server's own bureau timer")
+action(bob,"Admin",{command="pause"});expect(latest(bob,"snapshot").timersPaused==false,"F8 timer pause must be reversible")
 print("PASS authoritative server flow:",assertions,"assertions")

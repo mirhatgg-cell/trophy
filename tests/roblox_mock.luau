@@ -15,6 +15,10 @@ local vectorMeta = {}
 vectorMeta.__index = function(v, key) if key == "Magnitude" then return math.sqrt(v.X*v.X+v.Y*v.Y+v.Z*v.Z) end end
 vectorMeta.__add = function(a,b) return setmetatable({X=a.X+b.X,Y=a.Y+b.Y,Z=a.Z+b.Z},vectorMeta) end
 vectorMeta.__sub = function(a,b) return setmetatable({X=a.X-b.X,Y=a.Y-b.Y,Z=a.Z-b.Z},vectorMeta) end
+vectorMeta.__mul = function(a,b)
+	if type(a)=="number"then a,b=b,a end
+	return setmetatable({X=a.X*(if type(b)=="number"then b else b.X),Y=a.Y*(if type(b)=="number"then b else b.Y),Z=a.Z*(if type(b)=="number"then b else b.Z)},vectorMeta)
+end
 local Vector = {new = function(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end}
 local cfMeta = {}
 local CF = {}
@@ -22,7 +26,7 @@ function CF.new(x,y,z) return setmetatable({Position=if type(x)=="table" then x 
 function CF.Angles() return CF.new() end
 function CF.lookAt(pos) return CF.new(pos) end
 cfMeta.__mul = function(a,b) return CF.new(a.Position+b.Position) end
-cfMeta.__index = {PointToWorldSpace=function(a,b)return a.Position+b end}
+cfMeta.__index = {PointToWorldSpace=function(a,b)return a.Position+b end,PointToObjectSpace=function(a,b)return b-a.Position end}
 local function enumTable(name) return setmetatable({}, {__index=function(t,k)local v=name.."."..k;rawset(t,k,v);return v end}) end
 local enum=setmetatable({}, {__index=function(t,k)local v=enumTable(k);rawset(t,k,v);return v end})
 local allNodes={}
@@ -64,18 +68,24 @@ end
 function methods:Destroy() self.Parent=nil end
 function methods:Clone()
 	local n=node(self.ClassName,self.Name)
+	for k,v in pairs(self.attributes)do n.attributes[k]=v end
 	for k,v in pairs(self) do if k~="children" and k~="_parent" and k~="attributes" and k~="Triggered" and k~="OnServerEvent" and k~="sent" then n[k]=v end end
 	for _,c in ipairs(self.children) do local copy=c:Clone();copy.Parent=n end
 	if self.PrimaryPart then n.PrimaryPart=n:FindFirstChild(self.PrimaryPart.Name,true) end
 	return n
 end
 function methods:PivotTo(cf)
+	local delta=cf.Position-self:GetPivot().Position
+	for _,part in ipairs(self:GetDescendants())do if part:IsA("BasePart")and part.CFrame then part.CFrame=CF.new(part.CFrame.Position+delta)end end
 	self.CFrame=cf
-	local root=self.PrimaryPart or self:FindFirstChild("HumanoidRootPart") or self:FindFirstChild("Anchor")
-	if root then root.CFrame=cf end
 end
-function methods:GetPivot() return self.CFrame end
-function methods:ScaleTo() end
+function methods:GetPivot() return if self.PrimaryPart then self.PrimaryPart.CFrame else self.CFrame end
+function methods:GetScale()return self.testScale or 1 end
+function methods:ScaleTo(scale)
+	local factor=scale/self:GetScale();local pivot=self:GetPivot().Position
+	for _,p in ipairs(self:GetDescendants())do if p:IsA("BasePart")then if p.Size then p.Size=p.Size*factor end;if p.CFrame then p.CFrame=CF.new(pivot+(p.Position-pivot)*factor)end end end
+	self.testScale=scale
+end
 function methods:EquipTool(tool) tool.Parent=self.Parent end
 function methods:MoveTo() end
 function methods:FireClient(player,packet) table.insert(self.sent,{player=player,packet=packet}) end
@@ -124,6 +134,7 @@ for i=1,3 do
 	local b=node("Model","Level"..i,buildings);b.PrimaryPart=node("Part","Anchor",b)
 	local p=node("Part","Interaction",b);node("ProximityPrompt","AppraisalPrompt",p)
 	node("Seat","AppraiserSeat",b)
+	for slot=1,40 do local marker=node("Part",string.format("CollectionSlot_%02d",slot),b);marker.CFrame=CF.new((slot%4)*3,4+math.floor(slot/4)*2,-10)end
 	local reg=node("Part","Registry",b);node("ProximityPrompt","RegistryPrompt",reg)
 end
 local templates=node("Folder","Templates",services.ServerStorage);node("Model","BaconCustomer",templates)

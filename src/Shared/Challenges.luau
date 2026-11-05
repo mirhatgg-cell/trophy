@@ -5,12 +5,12 @@ local kinds={loupe=true,scale=true,uv=true,spectro=true,diagnostic=true}
 function Challenges.New(tool,seed,now)
 	assert(kinds[tool],"Unknown instrument")
 	local c={tool=tool,started=now,deadline=now+90,lastStep=now-.2,progress=0,found={},amount=0,tared=false,
-		target=5+math.floor(Domain.hash(seed,71)*91),angle=0,gears={},spots={}}
+		target=20+math.floor(Domain.hash(seed,71)*13)*5,angle=0,gears={},spots={}}
 	for i=1,3 do
 		c.spots[i]={x=.25+Domain.hash(seed,91+i)*.5,y=.24+Domain.hash(seed,103+i)*.48}
 		c.gears[i]=1+math.floor(Domain.hash(seed,131+i)*3)
 	end
-	if tool=="spectro" then c.target=math.floor(Domain.hash(seed,151)*24)*15;c.angle=(c.target+120)%360 end
+	if tool=="spectro" then c.target=math.floor(Domain.hash(seed,151)*24)*15;c.angle=(c.target+315)%360 end
 	return c
 end
 function Challenges.Ready(c)
@@ -28,7 +28,7 @@ function Challenges.Public(c)
 end
 function Challenges.Step(c,action,value,now)
 	if now>c.deadline then return false,false,"Время исследования истекло. Начни заново." end
-	if now<c.started or now-c.lastStep<.1 then return false,false,"Двигай прибор немного медленнее." end
+	if now<c.started or now-c.lastStep<.075 then return false,false,"Двигай прибор немного медленнее." end
 	local valid=false
 	if action=="finish" then
 		valid=Challenges.Ready(c)

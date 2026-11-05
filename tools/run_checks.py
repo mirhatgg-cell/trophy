@@ -21,6 +21,8 @@ run([args.luau,'tests/visits.spec.luau'])
 run([args.luau,'tests/challenges.spec.luau'])
 run([args.luau,'tests/rarity.spec.luau'])
 run([args.luau,'tests/tutorial.spec.luau'])
+run([args.luau,'tests/timing.spec.luau'])
+run([args.luau,'tests/layout.spec.luau'])
 bundle=(ROOT/'tests/roblox_mock.luau').read_text()+'\n'
 for path in sorted((ROOT/'src/Shared').glob('*.luau')):
     bundle+='register('+json.dumps(path.stem)+',function()\n'+path.read_text()+'\nend, shared)\n'
@@ -31,4 +33,5 @@ bundle+=(ROOT/'tests/server_flow.spec.luau').read_text()
 with tempfile.NamedTemporaryFile('w',suffix='.luau',prefix='proba-server-',delete=False) as f:f.write(bundle);temporary=f.name
 try:run([args.luau,temporary])
 finally:Path(temporary).unlink(missing_ok=True)
+run([sys.executable,'tools/check_client.py','--luau',args.luau])
 run([sys.executable,'tools/validate_place.py'])

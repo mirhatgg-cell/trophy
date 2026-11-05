@@ -60,7 +60,8 @@ function UI.Build(parent,record,api)
 		label("Совмести разрывы трёх передаточных колёс",0)
 		for i,angle in ipairs(c.gears)do
 			local gear=button(layer,"⚙",13+(i-1)*99,39,84,79,function()step("gear",i)end)
-			gear.TextSize=54;gear.TextColor3=if angle==0 then C.mint else C.gold;gear.Rotation=angle*90
+			gear.Text=""
+			local wheel=text(gear,"⚙",54,if angle==0 then C.mint else C.gold,UDim2.new(),UDim2.fromScale(1,1));wheel.Rotation=angle*90;wheel.TextXAlignment=Enum.TextXAlignment.Center
 			make("Frame",{BorderSizePixel=0,BackgroundColor3=if angle==0 then C.mint else C.red,AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(36,3),Rotation=angle*90},gear)
 		end
 		label("Зелёная горизонталь — правильное зацепление",134)

@@ -80,6 +80,10 @@ for n in actual_scripts:require(prop(n,'Source').text==expected_sources[name(n)]
 
 for n in descendants(ws):
     if is_part(n):require(prop(n,'Anchored').text=='true',f'Unanchored static environment object: {name(n)}')
+bench_seats=[n for n in nodes if name(n)=='BenchSeat']
+require(len(bench_seats)>=18,'Street benches need real usable seat instances')
+for seat in bench_seats:
+    require(seat.get('class')=='Seat'and prop(seat,'CanTouch').text=='true'and prop(seat,'Disabled').text=='false','Bench seating must be enabled and touchable')
 rig=child(child(storage,'Templates'),'BaconCustomer')
 require(len([n for n in rig.iter('Item') if n.get('class')=='Motor6D'])==6,'Fallback customer needs a complete articulated R6 rig')
 require(any(n.get('class')=='Humanoid' for n in rig.iter('Item')),'Fallback customer lacks a humanoid')
@@ -120,6 +124,9 @@ def check_route(model,points,label):
 for base in children(buildings):
     slots=[p for p in descendants(base)if name(p).startswith('CollectionSlot_')]
     require(len(slots)==40 and len({name(p)for p in slots})==40,'Every shop needs forty distinct physical collection places')
+    if name(base)!='Level1':
+        first=[p for p in slots if name(p)in{f'CollectionSlot_{i:02d}'for i in range(1,7)}]
+        require(len(first)==6 and all(abs(position(p)[2]+20)<.1 for p in first),'First six purchases must be on the front display plinths')
     sockets=[p for p in descendants(base)if name(p).startswith('DecorSocket_')]
     require({name(p)for p in sockets}=={'DecorSocket_'+c for c in ('sign','banner','advert','painting','lamp','scales')},'Safe decor mounting sockets missing')
     for socket in sockets:require(not collides(socket),'Decor socket must not obstruct movement')

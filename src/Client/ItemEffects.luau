@@ -33,6 +33,7 @@ function Effects.Start()
 				else
 					local base=pivot*(p:GetAttribute("FXLocal")or CFrame.new());local size=p:GetAttribute("FXSize")or p.Size
 					if kind=="phase"then p.CFrame=base*CFrame.new(math.sin(t)*.09,math.cos(t*.6)*.04,0);p.Transparency=.86+math.sin(t*.8)*.08
+					elseif kind=="polish"then p.CFrame=base*CFrame.new(math.sin(t*1.4)*radius*.7,0,0)*CFrame.Angles(0,0,-.2);p.Transparency=.25+math.sin(t*1.4)^2*.4
 					elseif kind=="leaf"then p.CFrame=base*CFrame.Angles(0,0,math.sin(t*.5)*.09);p.Size=size*(.94+math.sin(t*.3)*.06)
 					elseif kind=="frost"then p.Size=size*(.94+(math.sin(t*.35)*.5+.5)*.12)
 					elseif kind=="mist"then local age=(t*.17)%1;p.CFrame=base*CFrame.new(math.sin(t)*.13,age*.55,0);p.Transparency=.84+age*.15;p.Size=size*(1+age*1.8)

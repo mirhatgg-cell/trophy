@@ -2,4 +2,5 @@ __pycache__/
 *.pyc
 .DS_Store
 build/scene.json
+build/ui-state.json
 build/*.blend

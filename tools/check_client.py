@@ -1,0 +1,23 @@
+"""Run the real client with UI/service substitutes and save constructor snapshots for offline inspection."""
+import argparse,json,subprocess,tempfile
+from pathlib import Path
+root=Path(__file__).resolve().parents[1]
+p=argparse.ArgumentParser();p.add_argument('--luau',default='/tmp/trophy-luau/luau');a=p.parse_args()
+bundle=(root/'tests/roblox_mock.luau').read_text()+'\n'+(root/'tests/client_mock.luau').read_text()+'\n'
+for path in sorted((root/'src/Shared').glob('*.luau')):
+    bundle+='register('+json.dumps(path.stem)+',function()\n'+path.read_text()+'\nend,shared)\n'
+path=root/'src/Server/Catalog.luau'
+bundle+='register("Catalog",function()\n'+path.read_text()+'\nend,services.ServerScriptService)\n'
+for path in sorted((root/'src/Client').glob('*.luau')):
+    name='ProbaClient' if path.name=='Main.client.luau' else path.stem
+    bundle+='register('+json.dumps(name)+',function()\n'+path.read_text()+'\nend,clientScripts)\n'
+bundle+=(root/'tests/client_flow.spec.luau').read_text()
+with tempfile.NamedTemporaryFile('w',suffix='.luau',prefix='proba-client-',delete=False)as f:f.write(bundle);temporary=Path(f.name)
+try:result=subprocess.run([a.luau,str(temporary)],cwd=root,text=True,capture_output=True)
+finally:temporary.unlink(missing_ok=True)
+snapshots=[]
+for line in result.stdout.splitlines():
+    if line.startswith('UI_SNAPSHOT '):snapshots.append(json.loads(line[len('UI_SNAPSHOT '):]))
+    else:print(line)
+if result.returncode:print(result.stderr);raise SystemExit(result.returncode)
+(root/'build/ui-state.json').write_text(json.dumps(snapshots,ensure_ascii=False))

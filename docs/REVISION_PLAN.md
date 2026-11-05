@@ -5,7 +5,7 @@ This document preserves the user's review and work state across quota interrupti
 ## Accepted direction
 
 - English persistent brand: **PROBA · Appraisal & Antiques**. Name is a design choice, not a claim of trademark availability.
-- Generated visual reference: [direction board](references/proba-direction-board.png). The board is an aspirational concept, not evidence of implemented game visuals.
+- Archived first visual reference: [direction board](references/proba-direction-board.png). The user rejected its old-fashioned HUD direction; current UI follows the [0.3 review](REVISION_03.md). The board was never an in-game screenshot.
 - Preserve useful existing economy, reputation, approximation, peer appraisals, save isolation, small environmental details and admin laboratory.
 
 ## Ordered implementation checklist
@@ -19,7 +19,7 @@ This document preserves the user's review and work state across quota interrupti
 - [x] Profession symbol and required specialty beside each NPC emotion/speech bubble. Five actual icons generated in an atlas; text/symbol fallback remains active until genuine image IDs are configured.
 - [x] Read ALL friendship pages. Random shuffled cycles; no immediate or near-immediate repeats where sufficient distinct friends exist. Fetch descriptions on demand, not hundreds on arrival; handle errors and active visitors.
 - [x] Varied NPC first-person stories per instance; keep one story stable throughout the case and persist it when buying. Stories, offers and complaints appear in the NPC speech bubble; keep them readable during inspection.
-- [x] Compact appraisal UI up to 340×550 px, leaving the world visible. Five active tasks: loupe marks, tare/weight calibration, UV zones, prism alignment, diagnostic wheels. Server validates duration, case and steps; no reward from waiting or a client-reported score. Mouse/touch rotation includes vertical tilt.
+- [x] Replaced the old HUD in 0.3: a 318×40 icon rail, wallet chip, working panel up to 296×410, optional 3D/notes/bargaining and H to hide UI. Five active instrument tasks remain server-validated; service clocks pause during research.
 - [x] Visible dirt, chipped cup edges, altered surface tone and repair seams. Saved surface clues and UV repair reports agree; originals can have repairs and replicas can look convincing. Restoration reduces value by 8%. Cleaning/restoration as a separate paid activity is not part of this revision.
 - [x] Cup walls have overlapping segments; coins have struck profile, reeding and beaded border. Procedural surface patterns work now. Four generated material PNGs and five profession icons are saved with a precise import manifest; real image upload remains external below.
 - [x] Forty physical collection slots per building. Owned instances appear with their condition and rarity; F carries an owned nearby item. Only changed models rebuild, and held items return to the shelf when unequipped. Sale and ownership remain server-authoritative.
@@ -27,14 +27,14 @@ This document preserves the user's review and work state across quota interrupti
 - [x] Uniqueness independent of mutation: normal 0%; first +0.1 percentage point 1/1000, each further consecutive step 1000 times rarer. Odds documented and F8 preview deterministic.
 - [x] Seven different mutation mechanisms: Silver specular sheen; Gold metal/filigree/glint; Ghost translucent phased silhouette; Verdant vines/leaves; Glacial facets/cold breath; Ember charcoal/cracks/cinders; Astral dark glass/orbiting stars. Exact odds: 1/1000, 1/10000, 1/50000, 1/100000, 1/250000, 1/1000000, 1/10000000. Server-rolled and saved.
 - [x] Spatial door slide/stop, instrument and transaction feedback, local mute group. Six original WAVs generated with import manifest; Roblox built-in fallback is active pending upload.
-- [x] Independent 310 px top-right TAB. Title/name effects, card backgrounds and frames are equipped separately; plain and animated choices included.
+- [x] Independent TAB up to 270 px wide. Actual animated name/title ornaments appear both in TAB and above the character; frame/background are separate.
 - [x] Fresh rbxlx build, all source compiled, authoritative economy/session/receipt flows exercised, source freshness/API schema/geometry validated. These are automated checks, not a Studio playtest.
 
 ## Checkpoint
 
-Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`. Current revision 0.2 contains all checked implementation above, embedded in `build/PROBA.rbxlx`. The build retains 100 items, 91 geometry families, three buildings and six plots. Offline architecture/interior previews have been regenerated from current geometry; they omit Roblox HUD and SurfaceGui rendering and must never be described as Studio screenshots.
+Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`; revision 0.2: `aa0b3da`. Current revision **0.3** implements the [latest reported problems](REVISION_03.md), embedded in `build/PROBA.rbxlx`. The build retains 100 items, 91 geometry families, three buildings and six plots. UI previews come from actual constructor execution with substitute services; geometry previews use Blender. Neither is a Studio screenshot.
 
-Latest automated checks: 3911 economy assertions; 4098 visit/story assertions; 53 instrument assertions; 16 rarity assertions; 6 tutorial assertions; 43 authoritative server-flow assertions, plus XML/API/geometry validation. The two deliberate storage-outage warnings are expected test scenarios.
+Automated checks now include real client constructors/actions, R6/R15 animation control paths, individual visitor clocks, layout bounds and physical collection regression tests with an intentional optional-FX failure, alongside existing economy/visits/rarity/save/receipt/XML/API/geometry checks. Exact current output is produced by `python tools/run_checks.py`.
 
 ## External steps still unverified
 

@@ -1,0 +1,30 @@
+"""Offline constructor-based UI previews. This is not an engine screenshot; fonts/3D are approximated."""
+import html,json
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+root=Path(__file__).resolve().parents[1]
+snapshots=json.loads((root/'build/ui-state.json').read_text())
+def rgb(c,alpha=1):
+    if not c:return 'transparent'
+    return f'rgba({round(c["R"]*255)},{round(c["G"]*255)},{round(c["B"]*255)},{alpha})'
+with sync_playwright()as p:
+    browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    for state in snapshots:
+        page=browser.new_page(viewport={'width':state['width'],'height':state['height']},device_scale_factor=1)
+        blocks=[]
+        for o in state['objects']:
+            x,y,w,h=[o[k]for k in ('x','y','w','h')]
+            if w<=0 or h<=0:continue
+            clip=o['clip'];top=max(0,clip['y']-y);left=max(0,clip['x']-x);bottom=max(0,y+h-clip['y']-clip['h']);right=max(0,x+w-clip['x']-clip['w'])
+            if top+bottom>=h or left+right>=w:continue
+            style=f'left:{x}px;top:{y}px;width:{w}px;height:{h}px;background:{rgb(o.get("color"),1-o["alpha"])};color:{rgb(o.get("ink"))};font-size:{o["size"]}px;border-radius:{o["radius"]}px;z-index:{o["z"]};clip-path:inset({top}px {right}px {bottom}px {left}px);'
+            if o.get('border'):style+=f'border:{o["thickness"]}px solid {rgb(o["border"],.6)};'
+            align='left'if str(o.get('align','')).endswith('Left')else'center'
+            bold='bold'if 'Bold'in str(o.get('font'))or'Black'in str(o.get('font'))else'normal'
+            style+=f'text-align:{align};font-weight:{bold};'
+            content=html.escape(o.get('text','')).replace('\n','<br>')
+            if o['class']=='ViewportFrame':content='<span style="opacity:.4;font-size:10px;color:#a0acb7">3D VIEWPORT / отображается движком Roblox</span>'
+            blocks.append('<div style="'+style+'"><span>'+content+'</span></div>')
+        source='<!doctype html><meta charset="utf-8"><style>html,body{height:100%;margin:0;background:radial-gradient(ellipse at 50% 40%,#5a6572,#343f49);font-family:"DejaVu Sans",sans-serif}div{position:absolute;box-sizing:border-box;display:flex;align-items:center;overflow:hidden}div>span{width:100%;padding:0 3px;line-height:1.22}aside{position:absolute;left:44%;top:46%;width:28%;font-size:11px;color:#a0acb7;line-height:1.8}</style><aside>ПРОВЕРКА КОНСТРУКТОРОВ UI<br>Геометрия мира и эффекты 3D здесь не рендерятся.<br>Это не скриншот Roblox Studio.</aside>'+''.join(blocks)
+        page.set_content(source);page.screenshot(path=str(root/f'build/ui-{state["name"]}.png'));page.close()
+    browser.close()

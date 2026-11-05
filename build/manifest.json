@@ -2,9 +2,9 @@
   "name": "PROBA · Appraisal & Antiques",
   "catalogue": 100,
   "unique_model_kinds": 91,
-  "instances": 12782,
-  "total_parts": 12041,
-  "world_parts": 5531,
+  "instances": 12938,
+  "total_parts": 12188,
+  "world_parts": 5609,
   "items": {
     "h01": 29,
     "h02": 8,
@@ -124,7 +124,7 @@
       "footprint": 5808,
       "floors": 1,
       "gross_floor_area": 5808,
-      "parts": 591
+      "parts": 624
     },
     "3": {
       "width": 108,
@@ -133,7 +133,7 @@
       "footprint": 9072,
       "floors": 2,
       "gross_floor_area": 16267.5,
-      "parts": 1143
+      "parts": 1179
     }
   }
 }

@@ -113,6 +113,8 @@ function Appearance.Apply(model,item)
 		if id=="silver"then
 			local sheen=Instance.new("Highlight");sheen.Name="MovingSpecular";sheen.FillColor=color;sheen.FillTransparency=.94;sheen.OutlineTransparency=.75;sheen.Adornee=model;sheen.Parent=fx
 			motion(sheen,"sheen",model)
+			local band=part(fx,"PolishedSweep",Vector3.new(.025,math.max(.06,bounds.Y*.78),.015),box*CFrame.new(0,0,-bounds.Z*.505),Color3.fromRGB(238,246,250),Enum.Material.Metal,.28)
+			motion(band,"polish",model)
 		elseif id=="gold"then
 			for i=1,10 do
 				local t=i*math.pi/5

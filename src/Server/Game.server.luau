@@ -17,6 +17,8 @@ local Decor=require(ReplicatedStorage.Shared.Decor)
 local Decorations=require(script.Parent.Decorations)
 local Commerce=require(script.Parent.Commerce)
 local Tutorial=require(ReplicatedStorage.Shared.Tutorial)
+local Timing=require(ReplicatedStorage.Shared.CustomerTiming)
+local Presentation=require(ReplicatedStorage.Shared.Presentation)
 local Workstation=require(script.Parent.Workstation)
 local Catalog = require(script.Parent.Catalog)
 local Profiles = require(script.Parent.Profiles)
@@ -92,8 +94,11 @@ local function casePacket(player, record)
 	if not record then return nil end
 	local tests = {}
 	for key, result in pairs(record.tests) do tests[key] = { text = result.text, relevant = result.relevant } end
+	local timing=Timing.Public(record)
+	if record.accepted and record.expires then timing.seconds=math.max(0,math.ceil(record.expires-os.clock()));timing.paused=record.busy~=nil end
 	return { id = record.id, item = publicItem(player, record.item, record.tests), customer = record.name,
 		patience = record.patience, mood = record.mood, tests = tests, negotiations = record.negotiations, counter = record.counter, busy = record.busy ~= nil,
+		timing=timing,
 		challenge = record.busy and Challenges.Public(record.busy) }
 end
 
@@ -115,6 +120,7 @@ sendSnapshot = function(player)
 	State:FireClient(player, { kind = "snapshot", cash = p.cash, available = availableCash(player), reputation = p.reputation,
 		baseLevel = p.baseLevel, specialty = p.specialty, specXP = p.specXP, equipment = p.equipment, stats = p.stats,
 		ownedDecor=p.ownedDecor,equippedDecor=p.equippedDecor,tutorial=Tutorial.State(p),
+		timersPaused=customerSession and customerSession.paused==true,
 		title = p.title, unlocked = Domain.unlockedTitles(p), seenCount = #p.seen, inventory = inv, heldUid = s.heldUid,
 		plot = if s.plot then s.plot.Name else nil, saveMode = s.saveMode, queue = if customerSession then #customerSession.queue else 0,
 		capacity = Config.BaseLevels[p.baseLevel].capacity, seated = working(player,s), case = casePacket(player, Customers.Active(player)), pending = pending, peer = peer, admin = isAdmin(player) })
@@ -187,7 +193,19 @@ syncCollection=function(player)
 		if previous and previous:GetAttribute("VisualKey")==key then continue end
 		if previous then previous:Destroy()end
 		local model=ReplicatedStorage.ItemModels[item.id]:Clone();model.Name=name;model:SetAttribute("VisualKey",key)
-		model:ScaleTo(.30);model:PivotTo(slot.CFrame);Appearance.Apply(model,item);model.Parent=folder
+		model:SetAttribute("OwnedUid",item.uid);model:SetAttribute("OwnerUserId",player.UserId)
+		model.Parent=folder
+		Presentation.Place(model,slot.CFrame,1.9,1.55)
+		for _,part in ipairs(model:GetDescendants())do if part:IsA("BasePart")then part.Anchored=true;part.CanCollide=false;part.CanTouch=false end end
+		local styled,err=pcall(Appearance.Apply,model,item)
+		if not styled then warn("[PROBA] Collection appearance",item.id,err)end
+		local view=Instance.new("ProximityPrompt");view.Name="CollectionInspect";view.ActionText="Рассмотреть"
+		view.ObjectText=index[item.id].name;view.RequiresLineOfSight=false;view.MaxActivationDistance=11
+		view.KeyboardKeyCode=Enum.KeyCode.E;view.Parent=model.PrimaryPart
+		view.Triggered:Connect(function(visitor)
+			if not Profiles.loaded[visitor]or not near(visitor,slot.Position,14)then return end
+			State:FireClient(visitor,{kind="exhibit",item=publicItem(visitor,item,{}),owner=player.DisplayName,owned=visitor==player})
+		end)
 		local interaction=Instance.new("ProximityPrompt");interaction.Name="CollectionPickup";interaction.ActionText="Взять в руки"
 		interaction.ObjectText=index[item.id].name.." · "..Rarity.Caption(item);interaction.RequiresLineOfSight=false
 		interaction.MaxActivationDistance=12;interaction.KeyboardKeyCode=Enum.KeyCode.F;interaction.HoldDuration=.2;interaction.Parent=model.PrimaryPart
@@ -414,7 +432,7 @@ handlers.ChallengeStep=function(player,data)
 	if done then
 		Workstation.Stop(player)
 		Tutorial.Mark(Profiles.loaded[player],c.tool)
-		record.tests[c.tool]=Domain.test(Profiles.loaded[player],index[record.item.id],record.item,c.tool);record.busy=nil
+		record.tests[c.tool]=Domain.test(Profiles.loaded[player],index[record.item.id],record.item,c.tool);record.busy=nil;record.servicePausedUntil=os.clock()+10
 		sendSnapshot(player)
 	else
 		if os.clock()>c.deadline then record.busy=nil;Workstation.Stop(player);sendSnapshot(player);return end
@@ -543,7 +561,7 @@ handlers.PeerAccept = function(player, data)
 	if not r or r.appraiser ~= player or r.accepted then return end
 	if not working(player, sessions[player]) then message(player, "Для приёма экспертизы сядь в своё рабочее кресло."); return end
 	if not near(r.visitor, sessions[player].plot.Anchor.Position, 110) then cancelRequest(r.id, "Посетитель ушёл из бюро."); return end
-	r.accepted = true; r.expires = os.clock() + 110
+	r.accepted = true; r.expires = os.clock() + 600
 	message(r.visitor, "Оценщик принял предмет. Он выдаст заключение после исследования.")
 	sendSnapshot(player); updateDisplay(player); open(player, "peer")
 end
@@ -580,9 +598,20 @@ handlers.Admin = function(player, data)
 		Customers.Detach(player)
 		for _, visitor in ipairs(Players:GetPlayers()) do if visitor.Character and near(visitor, s.plot.Anchor.Position, 70) then unseat(visitor);visitor.Character:PivotTo(s.plot.Anchor.CFrame * CFrame.new(14, 4, -76)) end end
 		p.baseLevel = p.baseLevel % 3 + 1; rebuild(player); Customers.Attach(player, s.plot, p)
+	elseif data.command=="pause"then Customers.SetPaused(player,not(Customers.sessions[player]and Customers.sessions[player].paused))
+	elseif (data.command=="sample"or data.command=="samples")and index[data.id]then
+		local mutations=if data.command=="samples"then {"none",unpack(Rarity.Order)}else {data.mutation or "none"}
+		for _,mutation in ipairs(mutations)do
+			if #p.inventory>=Config.InventoryLimit then break end
+			if mutation~="none"and not Rarity.Definitions[mutation]then continue end
+			local item=Customers.NewItem(index[data.id],p.reputation);item.paid=0;item.condition=.95;item.repair=false;item.surfaceTone=0
+			item.mutation=mutation;item.uniqueness=if Domain.finite(data.uniqueness)then math.floor(math.clamp(data.uniqueness,0,100)*10+.5)/10 else 0
+			table.insert(p.inventory,item)
+		end
+		message(player,"Образцы выставлены в коллекции. E — рассмотреть, F — взять.","good")
 	elseif data.command == "spawn" and index[data.id] then
 		Customers.Flush(player)
-		if Customers.Spawn(player, data.id, true) then open(player, "case") end
+		if Customers.Spawn(player, data.id, true,data)then if working(player,s)then open(player,"case")else message(player,"Клиент у стойки. Сядь в кресло, чтобы начать.")end end
 	elseif data.command == "item" and index[data.id] and #p.inventory < Config.InventoryLimit then
 		local item = Customers.NewItem(index[data.id], p.reputation); item.paid = 0; table.insert(p.inventory, item)
 	elseif data.command == "emotions" then
@@ -613,8 +642,11 @@ Commerce.Init(Profiles,sessions,message,function(player)applyDecor(player);sendS
 
 Action.OnServerEvent:Connect(function(player, action, data)
 	if type(action) ~= "string" or not handlers[action] then return end
-	local now = os.clock(); local b = buckets[player] or { tokens = 10, at = now }
-	b.tokens = math.min(10, b.tokens + (now - b.at) * 3); b.at = now; buckets[player] = b
+	local now=os.clock();local instrument=action=="ChallengeStep"
+	local bucketSet=buckets[player]or{};buckets[player]=bucketSet
+	local key=if instrument then"instrument"else"general";local capacity=if instrument then 30 else 10
+	local b=bucketSet[key]or{tokens=capacity,at=now};bucketSet[key]=b
+	b.tokens=math.min(capacity,b.tokens+(now-b.at)*(if instrument then 15 else 3));b.at=now
 	if b.tokens < 1 then return end
 	b.tokens -= 1
 	if action ~= "Hello" and not Profiles.loaded[player] then message(player, "Бюро ещё загружается."); return end
@@ -623,6 +655,7 @@ Action.OnServerEvent:Connect(function(player, action, data)
 end)
 
 Customers.Init(Catalog, index, {
+	servicePause=function(player)for _,r in pairs(requests)do if r.appraiser==player and r.accepted then return true end end;return false end,
 	changed = function(player) if sessions[player] and Profiles.loaded[player] then updateDisplay(player); sendSnapshot(player) end end,
 	abandoned = function(player)
 		local p = Profiles.loaded[player]
@@ -632,7 +665,7 @@ Customers.Init(Catalog, index, {
 		if not player.Parent then return end
 		local s = Customers.sessions[player]; local active = Customers.Active(player)
 		State:FireClient(player, { kind = "pulse", queue = if s then #s.queue else 0, caseId = active and active.id,
-			patience = active and active.patience, mood = active and active.mood })
+			patience = active and active.patience, mood = active and active.mood,timing=active and Timing.Public(active) })
 	end,
 })
 
@@ -729,7 +762,10 @@ task.spawn(function()
 				end)
 			end
 		end
-		for id, request in pairs(requests) do if os.clock() > request.expires then cancelRequest(id, "Время ожидания экспертизы истекло. Комиссия не списана.") end end
+		for id,request in pairs(requests)do
+			if request.accepted and request.busy and os.clock()<request.busy.deadline then request.expires+=.25 end
+			if os.clock()>request.expires then cancelRequest(id,"Время ожидания экспертизы истекло. Комиссия не списана.")end
+		end
 	end
 end)
 task.spawn(function()

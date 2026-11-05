@@ -7,6 +7,8 @@ local Domain = require(game.ReplicatedStorage.Shared.Domain)
 local Visits = require(game.ReplicatedStorage.Shared.Visits)
 local Stories = require(game.ReplicatedStorage.Shared.Stories)
 local Rarity = require(game.ReplicatedStorage.Shared.Rarity)
+local Timing = require(game.ReplicatedStorage.Shared.CustomerTiming)
+local CollectionService=game:GetService("CollectionService")
 
 local Customers = { sessions = {}, actors = {} }
 local callbacks, catalog, byId
@@ -33,8 +35,9 @@ function Customers.NewItem(def, reputation)
 end
 
 local function setMood(record, mood, phrase)
+	record.mood=mood
 	if not record.model or not record.model.Parent then return end
-	record.mood = mood
+	record.model:SetAttribute("ProbaMood",mood)
 	local label = record.model:FindFirstChild("Mood", true)
 	if label and label:IsA("TextLabel") then label.Text = emoji[mood] or emoji.neutral end
 	local caption = record.model:FindFirstChild("Caption", true)
@@ -56,6 +59,9 @@ function Customers.Mood(player, mood, phrase)
 end
 
 local function decorate(model, displayName, specialty)
+	for _,obj in ipairs(model:GetDescendants())do
+		if obj:IsA("Animator")then for _,track in ipairs(obj:GetPlayingAnimationTracks())do track:Stop(0)end end
+	end
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.CollisionGroup = "Customers"
@@ -71,11 +77,11 @@ local function decorate(model, displayName, specialty)
 		local board = Instance.new("BillboardGui"); board.Name = "CustomerMood"; board.Size = UDim2.fromOffset(320, 172)
 		board.StudsOffset = Vector3.new(0, 4.5, 0); board.MaxDistance = 42; board.AlwaysOnTop = false; board.Parent = head
 		local mood = Instance.new("TextLabel"); mood.Name = "Mood"; mood.Size = UDim2.fromOffset(40, 38); mood.Position = UDim2.fromOffset(0, 0)
-		mood.BackgroundColor3 = Color3.fromRGB(249, 245, 228); mood.BackgroundTransparency = 0.08; mood.TextSize = 29; mood.Text = "🙂"; mood.Parent = board
+		mood.BackgroundColor3 = Color3.fromRGB(15, 22, 36); mood.BackgroundTransparency = 0.08; mood.TextSize = 29; mood.Text = "🙂"; mood.Parent = board
 		local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 12); corner.Parent = mood
 		local spec = Config.Specs[specialty]
 		local badge = Instance.new("TextLabel"); badge.Name = "ProfessionSymbol"; badge.Text = spec.symbol; badge.Font = Enum.Font.GothamBold
-		badge.TextColor3 = Color3.fromRGB(225, 195, 128); badge.TextSize = 26; badge.BackgroundColor3 = Color3.fromRGB(25, 40, 40)
+		badge.TextColor3 = Color3.fromRGB(86, 234, 208); badge.TextSize = 26; badge.BackgroundColor3 = Color3.fromRGB(25, 33, 51)
 		badge.Size = UDim2.fromOffset(40,38); badge.Position = UDim2.fromOffset(45,0); badge.Parent = board
 		local round = Instance.new("UICorner"); round.CornerRadius = UDim.new(0,8); round.Parent = badge
 		local rect = Config.ProfessionIconRects[spec.icon]
@@ -91,24 +97,34 @@ local function decorate(model, displayName, specialty)
 		name.BackgroundTransparency = 1; name.Font = Enum.Font.GothamMedium; name.TextSize = 12; name.TextColor3 = Color3.fromRGB(252, 246, 224)
 		name.TextStrokeTransparency = 0.5; name.Text = displayName; name.Parent = board
 		local required = name:Clone(); required.Name = "RequiredProfession"; required.TextSize = 11; required.Position = UDim2.fromOffset(94,20)
-		required.Text = "Нужен: " .. spec.name; required.TextColor3 = Color3.fromRGB(225,195,128); required.Parent = board
+		required.Text = "Нужен: " .. spec.name; required.TextColor3 = Color3.fromRGB(86,234,208); required.Parent = board
 		local caption = name:Clone(); caption.Name = "Caption"; caption.TextSize = 12; caption.Position = UDim2.fromOffset(0, 45)
 		caption.Size = UDim2.fromOffset(320,0); caption.AutomaticSize = Enum.AutomaticSize.Y; caption.TextWrapped = true
-		caption.TextColor3 = Color3.fromRGB(31,43,43); caption.TextStrokeTransparency = 1; caption.BackgroundTransparency = 0.06
-		caption.BackgroundColor3 = Color3.fromRGB(249,245,228); caption.Text = "Жду своей очереди"; caption.Parent = board
+		caption.TextColor3 = Color3.fromRGB(233,242,255); caption.TextStrokeTransparency = 1; caption.BackgroundTransparency = 0.06
+		caption.BackgroundColor3 = Color3.fromRGB(15,22,36); caption.Text = "Жду своей очереди"; caption.Parent = board
 		local padding = Instance.new("UIPadding"); padding.PaddingTop = UDim.new(0,7); padding.PaddingBottom = UDim.new(0,7)
 		padding.PaddingLeft = UDim.new(0,9); padding.PaddingRight = UDim.new(0,9); padding.Parent = caption
 		local bubbleCorner = Instance.new("UICorner"); bubbleCorner.CornerRadius = UDim.new(0,9); bubbleCorner.Parent = caption
+		local track=Instance.new("Frame");track.Name="PersonalPatience";track.BackgroundColor3=Color3.fromRGB(42,54,76)
+		track.BorderSizePixel=0;track.Size=UDim2.fromOffset(320,2);track.Position=UDim2.fromOffset(0,41);track.Parent=board
+		local fill=Instance.new("Frame");fill.Name="PersonalPatienceFill";fill.BackgroundColor3=Color3.fromRGB(86,234,208)
+		fill.BorderSizePixel=0;fill.Size=UDim2.fromScale(1,1);fill.Parent=track
 	end
+	CollectionService:AddTag(model,"ProbaCustomer")
 	return humanoid
+end
+
+local function walking(record,value)
+	record.walking=value
+	if record.model then record.model:SetAttribute("ProbaWalking",value)end
 end
 
 local function move(record, session, points, token, leaving)
 	local root = record.model and record.model:FindFirstChild("HumanoidRootPart")
 	if not root or not record.humanoid then return false end
-	record.walking = true
+	walking(record,true)
 	for _, point in ipairs(points) do
-		if not record.model.Parent or record.moveToken ~= token or (not leaving and not session.alive) then record.walking = false; return false end
+		if not record.model.Parent or record.moveToken ~= token or (not leaving and not session.alive) then walking(record,false); return false end
 		local target = world(session, point.X, point.Y, point.Z)
 		record.humanoid:MoveTo(target)
 		local deadline = os.clock() + math.max(5, (root.Position - target).Magnitude / 7 + 2)
@@ -116,10 +132,10 @@ local function move(record, session, points, token, leaving)
 			if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude < 2 then break end
 			task.wait(0.15)
 		end
-		if not root.Parent or record.moveToken ~= token then record.walking = false; return false end
-		if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude >= 5 then record.walking = false; return false end
+		if not root.Parent or record.moveToken ~= token then walking(record,false); return false end
+		if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude >= 5 then walking(record,false); return false end
 	end
-	record.walking = false
+	walking(record,false)
 	return true
 end
 
@@ -200,7 +216,7 @@ function Customers.Flush(player)
 	callbacks.changed(player)
 end
 
-function Customers.Spawn(player, forcedId, immediate)
+function Customers.Spawn(player, forcedId, immediate, overrides)
 	local session = Customers.sessions[player]
 	if not session or not session.alive or #session.queue >= Config.BaseLevels[session.profile.baseLevel].capacity then return false end
 	local profile = session.profile
@@ -221,7 +237,11 @@ function Customers.Spawn(player, forcedId, immediate)
 	if #session.friends > 0 and not friend then return false end
 	local displayName = if friend then friend.name else ({ "Алекс · классический гость", "Робин · классический гость", "Сэм · классический гость", "Бэкон · классический гость" })[rng:NextInteger(1, 4)]
 	local record = { id = HttpService:GenerateGUID(false), item = Customers.NewItem(def, profile.reputation), name = displayName,
-		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", age = 0, friendId = friend and friend.id }
+		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", age = 0, friendId = friend and friend.id,requiredSpec=def.spec }
+	if type(overrides)=="table"then
+		if overrides.mutation=="none"or Rarity.Definitions[overrides.mutation]then record.item.mutation=overrides.mutation end
+		if Domain.finite(overrides.uniqueness)then record.item.uniqueness=math.floor(math.clamp(overrides.uniqueness,0,100)*10+.5)/10 end
+	end
 	table.insert(session.queue, record)
 	task.spawn(function()
 		local model
@@ -265,6 +285,11 @@ function Customers.Attach(player, plot, profile)
 	end)
 end
 
+function Customers.SetPaused(player,value)
+	local session=Customers.sessions[player]
+	if session then session.paused=value==true;callbacks.changed(player)end
+end
+
 function Customers.Detach(player)
 	local s = Customers.sessions[player]
 	if not s then return end
@@ -287,14 +312,23 @@ function Customers.Init(definitions, index, handlers)
 			task.wait(1)
 			for player, s in pairs(Customers.sessions) do
 				if not s.alive then continue end
-				if os.clock() >= s.nextSpawn then
+				if not s.paused and os.clock() >= s.nextSpawn then
 					Customers.Spawn(player)
 					s.nextSpawn = os.clock() + math.max(9, 25 - s.profile.reputation * 0.12 - s.profile.baseLevel * 1.5)
 				end
 				local expired = {}
 				for index, r in ipairs(s.queue) do
 					r.age += 1
-					if r.arrived then r.patience = math.max(0, r.patience - (1 + (#s.queue - 1) * 0.13) / (if index == 1 then 115 else 145)) end
+					Timing.Step(r,index==1,1,os.clock(),s.paused or(index==1 and callbacks.servicePause and callbacks.servicePause(player)))
+					if r.model and r.arrived then
+						local fill=r.model:FindFirstChild("PersonalPatienceFill",true)
+						if fill then fill.Size=UDim2.fromScale(r.patience,1);fill.BackgroundColor3=if r.patience<.25 then Color3.fromRGB(255,115,137)else Color3.fromRGB(86,234,208)end
+						local label=r.model:FindFirstChild("RequiredProfession",true)
+						if label and r.requiredSpec then
+							local t=r.remainingSeconds or 0
+							label.Text=Config.Specs[r.requiredSpec].name.." · "..(if r.clockPaused then"пауза"else string.format("%d:%02d",math.floor(t/60),t%60))
+						end
+					end
 					if r.routeFailed or r.patience <= 0 or (not r.arrived and r.age > 60) then table.insert(expired, r)
 					elseif r.arrived and (r.moodLock or 0) < os.clock() then
 						local mood = if r.patience < 0.2 then "angry" elseif r.patience < 0.4 then "sad" elseif r.patience < 0.6 then "sigh" elseif index == 1 then "think" else "neutral"
@@ -309,28 +343,7 @@ function Customers.Init(definitions, index, handlers)
 			end
 		end
 	end)
-	-- Server-side joint motion also animates the asset-free classic fallback rig.
-	task.spawn(function()
-		while true do
-			task.wait(0.16)
-			local now = os.clock()
-			for r in pairs(Customers.actors) do
-					if r.model then
-						for _, limb in ipairs({ "Right Shoulder", "Left Shoulder", "Right Hip", "Left Hip", "RightShoulder", "LeftShoulder", "RightHip", "LeftHip" }) do
-							local joint = r.model:FindFirstChild(limb, true)
-							if joint and joint:IsA("Motor6D") then
-								local rest = joint:GetAttribute("Rest")
-								if not rest then rest = joint.C0; joint:SetAttribute("Rest", rest) end
-								local side = if string.find(limb, "Right") then 1 else -1
-								local swing = if r.walking then math.sin(now * 8) * 0.35 * side else math.sin(now * 1.8) * 0.035
-								if r.mood == "angry" and string.find(limb, "Shoulder") then swing += 0.35 end
-								TweenService:Create(joint, TweenInfo.new(0.16, Enum.EasingStyle.Linear), { C0 = rest * CFrame.Angles(swing, 0, 0) }):Play()
-							end
-						end
-					end
-			end
-		end
-	end)
+	-- Per-joint R6/R15 motion runs after Animator on every client, at display frame rate.
 end
 
 return Customers

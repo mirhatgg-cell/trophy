@@ -195,6 +195,10 @@ def bench(parent, pos, width=11):
         beam(parent, "BenchLeg", (x+dx, y, z-1.1), (x+dx, y+2, z-1.1), .35)
         beam(parent, "BenchBackLeg", (x+dx, y, z+1.5), (x+dx, y+4.7, z+1.5), .35)
         beam(parent, "SeatBracket", (x+dx, y+1.8, z-1.5), (x+dx, y+1.8, z+1.8), .3)
+    # Three independent usable seats, slightly below the slats so the authored bench stays visible.
+    for i,dx in enumerate((-width*.3,0,width*.3)):
+        seat=part(parent,"BenchSeat",(width*.27,.32,2.7),(x+dx,y+2.11,z),alpha=1,cls="Seat")
+        seat.set("CanTouch","bool",True).set("Disabled","bool",False)
 
 
 def desk(parent):
@@ -271,7 +275,7 @@ def bookshelf(parent, pos, width=14, height=12):
             part(m, "SpineLabel", (.48, .4, .025), (x, 1.65+row*3, -1.32), "paper", collide=False)
 
 
-def display_case(parent, pos, width=10):
+def display_case(parent, pos, width=10, collection_offset=None):
     m = group(parent, "DisplayCase", pos)
     part(m, "CaseBase", (width, .55, 4.4), (0, 3.1, 0), "wood", "Wood")
     for x in (-width/2+.4, width/2-.4):
@@ -283,10 +287,13 @@ def display_case(parent, pos, width=10):
     for x in (-width/2, width/2):
         for z in (-2.1, 2.1): part(m, "CaseStile", (.14, 2.5, .14), (x, 4.65, z), "brass", "Metal", collide=False)
     # Blank plinths are deliberate exhibit positions for the player's growing collection.
-    for x in (-width*.28, 0, width*.28): cylinder(m, "ExhibitPlinth", .65, .17, (x, 3.6, 0), "ivory", "Marble")
+    for index,x in enumerate((-width*.28, 0, width*.28)):
+        cylinder(m,"ExhibitPlinth",.85,.17,(x,3.6,0),"ivory","Marble")
+        if collection_offset is not None:
+            part(m,f"CollectionSlot_{collection_offset+index+1:02d}",(.1,.1,.1),(x,3.71,0),alpha=1,collide=False)
 
 
-def collection_case(parent,pos,width=11,offset=0):
+def collection_case(parent,pos,width=11,offset=0,count=20):
     m=group(parent,"CollectionCabinet",pos)
     part(m,"CabinetPlinth",(width,1.5,4.4),(0,.75,0),"wood","Wood")
     for x in (-width/2,width/2):
@@ -301,8 +308,10 @@ def collection_case(parent,pos,width=11,offset=0):
         part(m,"ShelfLip",(width,.18,.09),(0,y+.14,-2),"brass","Metal",collide=False)
         for col in range(4):
             x=-width/2+1.3+col*(width-2.6)/3
-            cylinder(m,"CollectionPlinth",.53,.1,(x,y+.14,0),"ivory","Marble")
-            part(m,f"CollectionSlot_{offset+row*4+col+1:02d}",(.1,.1,.1),(x,y+.22,0),alpha=1,collide=False)
+            order=(1,2,0,3,4).index(row)*4+col
+            if order<count:
+                cylinder(m,"CollectionPlinth",.78,.1,(x,y+.14,0),"ivory","Marble")
+                part(m,f"CollectionSlot_{offset+order+1:02d}",(.1,.1,.1),(x,y+.22,0),alpha=1,collide=False)
 
 
 def window_panel(parent, x, y, z, width, height, side=False):
@@ -497,8 +506,10 @@ def building(parent, level):
         beam(chair,"BackStile",(x,2.5,1.65),(x,6,1.65),.28,"wood","Wood",True)
     part(chair,"BackPad",(3.5,2.6,.5),(0,4.8,1.65),"mint","Fabric")
     beam(chair,"ChairBrace",(-1.5,1,-1.5),(1.5,1,1.5),.2,"wood","Wood")
-    collection_case(b,(-width/2+9,1,-10),11,0)
-    collection_case(b,(28 if level==3 else width/2-9,1,-29 if level==3 else -10),15 if level==3 else 11,20)
+    display_case(b,(-21,1,-20),14,0)
+    display_case(b,(21,1,-20),14,3)
+    collection_case(b,(-width/2+9,1,-10),11,6,17)
+    collection_case(b,(28 if level==3 else width/2-9,1,-29 if level==3 else -10),15 if level==3 else 11,23,17)
     sign(b,"ПРАВИЛА БЮРО\nОсмотр • Заключение • Выкуп",(-width/2+9,11,-depth/2+1.6),(11,4,.15),"cream","ink")
     registry=sign(b,"РАЗВИТИЕ\nБюро и оборудование",(width/2-8,11,-depth/2+1.6),(10,4,.15),"cream","ink")
     prompt(registry,"RegistryPrompt","Развитие бюро","Каталог мастерской",18)
