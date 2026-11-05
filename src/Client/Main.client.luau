@@ -13,7 +13,8 @@ local Appearance=require(Shared.Appearance)
 local Presentation=require(Shared.Presentation)
 local Decor=require(Shared.Decor)
 local Layout=require(Shared.HUDLayout)
-local TitleFX=require(script.Parent:WaitForChild("TitleFX"))
+local IdentityFX=require(script.Parent:WaitForChild("IdentityFX"))
+local IdentityUI=require(script.Parent:WaitForChild("IdentityUI"))
 local Instruments=require(script.Parent:WaitForChild("InstrumentUI"))
 require(script.Parent:WaitForChild("ItemEffects")).Start()
 require(script.Parent:WaitForChild("RigMotion")).Start()
@@ -45,7 +46,6 @@ local function box(parent,placeholder,value,x,y,w,changed)
 end
 local function money(n)local s=tostring(math.floor(n or 0));return s:reverse():gsub("(%d%d%d)","%1 "):reverse():gsub("^ ","")end
 local function emit(name,data)Action:FireServer(name,data or{})end
-local function titleDef(id)for _,d in ipairs(Config.Titles)do if d.id==id then return d end end;return Config.Titles[1]end
 local function panel(parent,x,y,w,h)local f=make("Frame",{BackgroundColor3=C.ink,BackgroundTransparency=.06,BorderSizePixel=0,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h)},parent);corner(f);stroke(f,C.line,.2);return f end
 local function scroll(parent,x,y,w,h)return make("ScrollingFrame",{BackgroundTransparency=1,BorderSizePixel=0,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=3,ScrollBarImageColor3=C.gold},parent)end
 local function visible(o)local p=o;while p do if p:IsA("GuiObject")and not p.Visible then return false end;p=p.Parent end;return o:IsDescendantOf(game)end
@@ -57,7 +57,9 @@ local rosterOpen=false
 local selectedItem,selectedDecor=nil,"sign_painted"
 local caseMode="npc"
 local drafts={}
-local views,connections,frameGradients={},{},{}
+local views,connections={},{ }
+local identityState={}
+local avatarDebug
 local lab={id="h03",mutation="silver",unique=0,tab="fx"}
 local exhibit,lastReceipt=nil,nil
 local showModel,showNotes,showOffer=false,false,false
@@ -98,7 +100,7 @@ local function icon(b,id)
 	elseif id=="titles"then local badge=outline(14,6,12,12,2);badge.Rotation=45;part(15,19,3,8,15,C.gold);part(23,19,3,8,-15,C.gold)
 	else outline(12,6,17,20);part(15,10,11,2,0,C.mint);part(15,15,7,2);part(15,20,9,2)end
 end
-local dockItems={{"Д","case","Дело [B]"},{"К","inventory","Коллекция"},{"Б","workshop","Бюро и приборы"},{"П","specialty","Профессии"},{"Т","titles","Титулы"},{"О","decor","Декор"},{"?","guide","Помощь"}}
+local dockItems={{"Д","case","Дело [B]"},{"К","inventory","Коллекция"},{"Б","workshop","Бюро и приборы"},{"П","specialty","Профессии"},{"Т","titles","Стиль: титул, nametag, фон"},{"О","decor","Декор"},{"?","guide","Помощь"}}
 local hint=text(gui,"",11,C.paper,UDim2.new(),UDim2.fromOffset(210,26));hint.BackgroundColor3=C.panel;hint.BackgroundTransparency=.05;corner(hint,8);hint.Visible=false;hint.TextXAlignment=Enum.TextXAlignment.Center
 for i,entry in ipairs(dockItems)do
 	local b=button(dock,entry[1],5+(i-1)*44,4,40,32,function()if mode==entry[2]then mode=nil;render()else emit("Open",{panel=entry[2]})end end)
@@ -244,24 +246,15 @@ local function drawInventory(w)
 	end
 end
 local function drawTitles(w)
-	heading("Титулы с движением","Эффект у имени над персонажем и в TAB. Рамка и фон — отдельно.")
-	local columns=if w>540 then 2 else 1;local cw=(w-(columns-1)*10)/columns
-	for i,d in ipairs(Config.Titles)do
-		local c=panel(body,((i-1)%columns)*(cw+10),math.floor((i-1)/columns)*152,cw,142)
-		local fx=TitleFX.Attach(c,d.id,player.DisplayName,d.name,cw-28);fx.Position=UDim2.fromOffset(14,14)
-		text(c,d.requirement,11,C.muted,UDim2.fromOffset(14,66),UDim2.fromOffset(cw-28,27));button(c,if data.title==d.id then"Надет"elseif data.unlocked[d.id]then"Надеть"else"Закрыт",14,103,cw-28,28,function()emit("Title",{id=d.id})end,if data.title==d.id then"primary"else nil)
-	end
+	heading("Стиль игрока","Три независимых слоя. Примеряй бесплатно в живом предпросмотре.")
+	IdentityUI.Build(body,data,player,w,identityState,{button=button,text=text,panel=panel,colors=C,emit=emit,render=render})
 end
 local function drawDecor(w)
-	heading("Декор / 26 вариантов","Монтаж в подготовленные места. Проходы остаются свободными.")
+	heading("Декор / 19 предметов","Оформление игрока перенесено в «Стиль». Здесь обстановка бюро.")
 	local y=0;local selected=Decor.ById[selectedDecor]
 	if selected and selected.category~="frame"and selected.category~="card"then viewport(body,selected.id,0,0,w,150,nil,Rep.DecorModels);y=160 end
-	if selected and(selected.category=="frame"or selected.category=="card")then
-		local sample=panel(body,0,0,w,85)
-		if selected.category=="card"then sample.BackgroundColor3=Color3.fromRGB(unpack(selected.color))else sample.UIStroke.Color=Color3.fromRGB(unpack(selected.color));sample.UIStroke.Thickness=2 end
-		local d=titleDef(data.title);local fx=TitleFX.Attach(sample,data.title,player.DisplayName,d.name,w-32);fx.Position=UDim2.fromOffset(16,15);y=97
-	end
 	for _,d in ipairs(Decor.List)do
+		if d.category=="card"or d.category=="frame"then continue end
 		local row=panel(body,0,y,w,88);y+=98
 		text(row,d.name,14,C.paper,UDim2.fromOffset(12,5),UDim2.fromOffset(w-145,25),Enum.Font.GothamBold);text(row,d.description,10,C.muted,UDim2.fromOffset(12,31),UDim2.fromOffset(w-145,48))
 		button(row,"Вид",w-125,8,46,25,function()selectedDecor=d.id;render(true)end)
@@ -276,9 +269,11 @@ local function drawAdmin(w)
 	if not data.admin then return end
 	button(body,"Эффекты и образцы",0,0,(w-8)/2,30,function()lab.tab="fx";render()end,if lab.tab=="fx"then"primary"else nil);button(body,"Игра и время",(w+8)/2,0,(w-8)/2,30,function()lab.tab="game";render()end,if lab.tab=="game"then"primary"else nil)
 	if lab.tab=="game"then
-		local commands={{"+25 000 монет","funds"},{"REP 75","reputation"},{"Все приборы III","tools"},{"База 1 → 2 → 3","base"},{"Все титулы","titles"},{"Весь декор","decor"},{if data.timersPaused then"Продолжить время"else"Остановить время","pause"},{"Настроение клиента","emotions"}}
+		local commands={{"+25 000 монет","funds"},{"REP 75","reputation"},{"Все приборы III","tools"},{"База 1 → 2 → 3","base"},{"Все оформления","identity"},{"Весь декор","decor"},{if data.timersPaused then"Продолжить время"else"Остановить время","pause"},{"Настроение клиента","emotions"}}
 		for i,c in ipairs(commands)do button(body,c[1],((i-1)%2)*(w+8)/2,44+math.floor((i-1)/2)*44,(w-8)/2,35,function()emit("Admin",{command=c[2]})end)end
-		text(body,"У стойки 5–6 минут, в очереди 15–18 минут. Исследование ставит время обслуживаемого гостя на паузу. Каждый посетитель уходит отдельно.",12,C.muted,UDim2.fromOffset(0,232),UDim2.fromOffset(w,90));return
+		button(body,"Привести друга пешком",0,228,w,32,function()emit("Admin",{command="friendwalk"})end,"primary")
+		avatarDebug=text(body,"",12,C.paper,UDim2.fromOffset(0,270),UDim2.fromOffset(w,90))
+		text(body,"F8 → «Все оформления» открывает титулы, nametag, фоны и рамки. Нативные треки гостя используются после загрузки; резерв включается, если Roblox не отдаёт анимацию.",11,C.muted,UDim2.fromOffset(0,370),UDim2.fromOffset(w,80));return
 	end
 	local specimen={mutation=lab.mutation,uniqueness=lab.unique,conditionScore=.95,visualSeed=417,repair=false,surfaceTone=0}
 	viewport(body,lab.id,0,42,w,170,specimen);text(body,Rarity.Caption(specimen).." / цена ×"..string.format("%.3f",Rarity.Multiplier(specimen)),13,C.mint,UDim2.fromOffset(0,217),UDim2.fromOffset(w,26),Enum.Font.GothamBold)
@@ -337,16 +332,14 @@ end
 renderRoster=function()
 	rosterShell.Visible=rosterOpen;rosterShell:ClearAllChildren();corner(rosterShell,12);stroke(rosterShell,C.line,.25)
 	if not rosterOpen then return end
-	local w=layout.roster.w;rosterShell.Size=UDim2.fromOffset(w,29+math.min(#rows,6)*58)
+	local w=layout.roster.w;local height=math.min(layout.height-100,29+math.min(#rows,6)*88);rosterShell.Size=UDim2.fromOffset(w,height)
 	text(rosterShell,"ОЦЕНЩИКИ",10,C.muted,UDim2.fromOffset(12,4),UDim2.fromOffset(w-24,22),Enum.Font.GothamBold)
+	local list=scroll(rosterShell,5,28,w-10,height-32)
 	for i,row in ipairs(rows)do
 		if i>6 then break end
-		local cd=Decor.ById[row.card]or Decor.ById.card_paper;local fd=Decor.ById[row.frame]or Decor.ById.frame_plain
-		local card=panel(rosterShell,6,27+(i-1)*58,w-12,52);card.BackgroundColor3=Color3.fromRGB(unpack(cd.color)):Lerp(C.deep,.7)
-		card.UIStroke.Color=Color3.fromRGB(unpack(fd.color));card.UIStroke.Thickness=if fd.tier>1 then 1.5 else 1
-		local d=titleDef(row.title);local fx=TitleFX.Attach(card,row.title,row.name,d.name,w-76);fx.Position=UDim2.fromOffset(12,3)
-		text(card,tostring(row.reputation),13,C.mint,UDim2.fromOffset(w-58,5),UDim2.fromOffset(34,25),Enum.Font.GothamBold)
-		if fd.tier==3 then local gradient=make("UIGradient",{Color=ColorSequence.new(Color3.fromRGB(unpack(fd.color)),C.paper)},card.UIStroke);table.insert(frameGradients,{frame=card,gradient=gradient})end
+		local card=IdentityFX.Card(list,{name=row.name,userId=row.userId,title=row.title,nametag=row.nametag,card=row.card,frame=row.frame,width=w-14,height=82})
+		card.Position=UDim2.fromOffset(0,(i-1)*88)
+		local rep=text(card,tostring(row.reputation).." REP",8,C.mint,UDim2.fromOffset(18,66),UDim2.fromOffset(54,13),Enum.Font.GothamBold);rep.TextXAlignment=Enum.TextXAlignment.Center
 	end
 end
 local nameplates={}
@@ -356,10 +349,11 @@ local function updateNameplates()
 		present[row.userId]=true
 		local target=Players:GetPlayerByUserId(row.userId);local head=target and target.Character and target.Character:FindFirstChild("Head");local old=nameplates[row.userId]
 		if not head then if old then old:Destroy();nameplates[row.userId]=nil end;continue end
-		if old and old.Parent==head and old:GetAttribute("Title")==row.title then continue end
+		local key=(row.title or"trainee").."|"..(row.nametag or"tag_plain").."|"..row.name
+		if old and old.Parent==head and old:GetAttribute("IdentityKey")==key then continue end
 		if old then old:Destroy()end
-		local board=make("BillboardGui",{Name="ProbaPlayerTitle",Size=UDim2.fromOffset(196,46),StudsOffset=Vector3.new(0,2.7,0),MaxDistance=65,AlwaysOnTop=false},head);board:SetAttribute("Title",row.title);nameplates[row.userId]=board
-		local d=titleDef(row.title);local fx=TitleFX.Attach(board,row.title,row.name,d.name,188);fx.Position=UDim2.fromOffset(4,0)
+		local board=make("BillboardGui",{Name="ProbaPlayerTitle",Size=UDim2.fromOffset(230,80),StudsOffset=Vector3.new(0,3.1,0),MaxDistance=65,AlwaysOnTop=false},head);board:SetAttribute("IdentityKey",key);nameplates[row.userId]=board
+		IdentityFX.World(board,{name=row.name,title=row.title,nametag=row.nametag})
 		local humanoid=target.Character:FindFirstChildOfClass("Humanoid");if humanoid then humanoid.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None end
 	end
 	for id,board in pairs(nameplates)do if not present[id]then board:Destroy();nameplates[id]=nil end end
@@ -370,6 +364,10 @@ renderHUD=function()
 	saveDot.BackgroundColor3=if data.saveMode=="session"then C.red elseif data.saveMode=="cloud"then C.mint else C.gold
 	queueButton.Text="Игроки / TAB";admin.Visible=data.admin
 	pending.Visible=data.pending~=nil;if data.pending then pendingText.Text=data.pending.name.."\n"..data.pending.item end
+	if avatarDebug and avatarDebug.Parent then
+		local a=data.avatarStatus
+		avatarDebug.Text=if a then "Гость: "..a.name.."\nДрайвер: "..a.status.." / clip "..a.clip.."\nWalk из аватара: "..a.walk..(if a.error and a.error~=""then"\n"..a.error else"")else"Нет гостя. Нажми «Привести друга пешком»."
+	end
 	local tutorial=data.tutorial;mentor.Visible=tutorial and not tutorial.done and not mode and not layout.mobile
 	if tutorial and not tutorial.done then mentor.Text="  "..tutorial.step.."/"..tutorial.total.."  "..tutorial.title end
 	mentorFocus.Enabled=false
@@ -394,7 +392,7 @@ resize=function()
 end
 State.OnClientEvent:Connect(function(packet)
 	if packet.kind=="snapshot"then data=packet;render()
-	elseif packet.kind=="pulse"and data then data.queue=packet.queue;if data.case and data.case.id==packet.caseId then data.case.patience=packet.patience;data.case.timing=packet.timing end;renderHUD()
+	elseif packet.kind=="pulse"and data then data.queue=packet.queue;data.avatarStatus=packet.avatarStatus;if data.case and data.case.id==packet.caseId then data.case.patience=packet.patience;data.case.timing=packet.timing end;renderHUD()
 	elseif packet.kind=="open"then mode=packet.panel;showModel=false;showNotes=false;showOffer=false;render()
 	elseif packet.kind=="catalog"then catalog=packet.items
 	elseif packet.kind=="roster"then rows=packet.rows;renderRoster();updateNameplates()
@@ -419,7 +417,6 @@ RunService.RenderStepped:Connect(function(dt)
 		if not v.dragging and os.clock()>v.resume then v.yaw+=dt*.22 end
 		local r=v.size*1.9;v.camera.CFrame=CFrame.lookAt(v.target+Vector3.new(math.sin(v.yaw)*math.cos(v.pitch)*r,math.sin(v.pitch)*r,math.cos(v.yaw)*math.cos(v.pitch)*r),v.target)
 	end
-	for i=#frameGradients,1,-1 do local v=frameGradients[i];if not v.frame.Parent then table.remove(frameGradients,i)elseif visible(v.frame)then v.gradient.Rotation=(v.gradient.Rotation+dt*55)%360 end end
 end)
 task.spawn(function()while gui.Parent do task.wait(1);updateNameplates()end end)
 resize();emit("Hello");task.delay(4,function()if not data then emit("Hello")end end)

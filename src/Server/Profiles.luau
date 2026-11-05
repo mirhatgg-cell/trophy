@@ -6,6 +6,7 @@ local Domain = require(game.ReplicatedStorage.Shared.Domain)
 local Rarity = require(game.ReplicatedStorage.Shared.Rarity)
 local Decor = require(game.ReplicatedStorage.Shared.Decor)
 local Tutorial=require(game.ReplicatedStorage.Shared.Tutorial)
+local Identity=require(game.ReplicatedStorage.Shared.Identity)
 
 local Profiles = { loaded = {}, sessions = {} }
 local store
@@ -21,7 +22,7 @@ local function defaults()
 	return { schema = 1, cash = Config.StartingCash, reputation = 0, baseLevel = 1, specialty = "Everyday",
 		specXP = { Everyday = 0, Jeweler = 0, Historian = 0, Archaeologist = 0, Technician = 0 },
 		equipment = { loupe = 1, scale = 1, uv = 0, spectro = 0, diagnostic = 0 },
-		inventory = {}, seen = {}, title = "trainee",ownedDecor={chair_wood=true,frame_plain=true,card_paper=true},
+		inventory = {}, seen = {}, title = "trainee",nametag="tag_plain",ownedNametags={tag_plain=true},ownedDecor={chair_wood=true,frame_plain=true,card_paper=true},
 		equippedDecor={chair="chair_wood",frame="frame_plain",card="card_paper"},receipts={},
 		tutorial={flags={},skipped=false},
 		stats = { served = 0, good = 0, fakes = 0, purchases = 0, rare = 0 } }
@@ -84,6 +85,7 @@ local function sanitize(raw, catalogById)
 	end
 	local unlocked = Domain.unlockedTitles(profile)
 	profile.title = if unlocked[raw.title] then raw.title else "trainee"
+	Identity.Load(profile,raw)
 	if type(raw.ownedDecor)=="table"then for id,owned in pairs(raw.ownedDecor)do if owned==true and Decor.ById[id]then profile.ownedDecor[id]=true end end end
 	if type(raw.equippedDecor)=="table"then for category,id in pairs(raw.equippedDecor)do local d=Decor.ById[id];if d and d.category==category and profile.ownedDecor[id]then profile.equippedDecor[category]=id end end end
 	if type(raw.receipts)=="table"then for id,done in pairs(raw.receipts)do if type(id)=="string"and #id<=120 and done==true then profile.receipts[id]=true end end end

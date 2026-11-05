@@ -175,4 +175,21 @@ displayed.PrimaryPart.CollectionInspect.Triggered:Fire(bob)
 expect(latest(bob,"exhibit").item.uid==first.uid,"E at a real exhibit must open its own inspectable item")
 action(bob,"Admin",{command="pause"});expect(latest(bob,"snapshot").timersPaused==true,"F8 pause must reach the server's own bureau timer")
 action(bob,"Admin",{command="pause"});expect(latest(bob,"snapshot").timersPaused==false,"F8 timer pause must be reversible")
+pB.cash=20000
+local before=pB.cash;local oldTitle=pB.title;local oldCard=pB.equippedDecor.card
+action(bob,"BuyNametag",{id="tag_volt",price=-100000})
+expect(pB.cash==before-1200 and pB.nametag=="tag_volt","A nametag must charge its actual server price, ignoring client-supplied prices")
+action(bob,"BuyNametag",{id="tag_volt"})
+expect(pB.cash==before-1200 and pB.title==oldTitle and pB.equippedDecor.card==oldCard,"Re-equipping must be free and must not change the title or background")
+action(bob,"Admin",{command="identity"})
+expect(pB.ownedNametags.tag_vesper and pB.ownedDecor.frame_wings and pB.ownedDecor.card_boreal,"One admin action must make all three customization departments testable")
+action(bob,"Title",{id="collector"});action(bob,"BuyDecor",{id="card_boreal"});action(bob,"BuyDecor",{id="frame_wings"})
+expect(pB.title=="collector"and pB.nametag=="tag_volt"and pB.equippedDecor.card=="card_boreal"and pB.equippedDecor.frame=="frame_wings","Four independent selections must coexist in the same real server profile")
+studio=false
+fakeStore.records.u_792={cash=2500,title="eye",stats={good=10},nametag="tag_boreal",ownedNametags={tag_boreal=true},ownedDecor={card_boreal=true,frame_wings=true},equippedDecor={card="card_boreal",frame="frame_wings"}}
+local styled=makePlayer("Styled",792);local style=Profiles.loaded[styled]
+expect(style.title=="eye"and style.nametag=="tag_boreal"and style.equippedDecor.frame=="frame_wings","Identity purchases and all independent equipped layers must survive cloud loading")
+Profiles.Save(styled,false)
+expect(fakeStore.records.u_792.nametag=="tag_boreal"and fakeStore.records.u_792.ownedNametags.tag_boreal,"Cloud writes must persist nickname ownership and selection")
+studio=true
 print("PASS authoritative server flow:",assertions,"assertions")

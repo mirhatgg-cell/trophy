@@ -23,9 +23,18 @@ local Decor={List={
 	{["id"] = "frame_brass", ["name"] = "Чеканная рамка", ["category"] = "frame", ["tier"] = 2, ["price"] = 650, ["color"] = {199, 159, 86}, ["description"] = "Латунные угловые скобы, отдельные от титула."},
 	{["id"] = "frame_mechanical", ["name"] = "Механическая рамка", ["category"] = "frame", ["tier"] = 3, ["price"] = 4200, ["color"] = {172, 190, 199}, ["description"] = "Угловые вращающиеся шестерни вокруг карточки."},
 	{["id"] = "frame_astral", ["name"] = "Орбитальная рамка", ["category"] = "frame", ["tier"] = 3, ["premium"] = true, ["value"] = 8000, ["color"] = {149, 165, 223}, ["description"] = "Сдержанная орбита светлых звёзд по краю карточки."},
-	{["id"] = "card_paper", ["name"] = "Бумажный фон", ["category"] = "card", ["tier"] = 1, ["price"] = 0, ["color"] = {47, 57, 55}, ["description"] = "Нейтральная подложка карточки оценщика."},
+	{["id"] = "card_paper", ["name"] = "Чистый графит", ["category"] = "card", ["tier"] = 1, ["price"] = 0, ["color"] = {32, 43, 62}, ["description"] = "Холодный графит и тонкая сетка цифрового профиля."},
 	{["id"] = "card_velvet", ["name"] = "Бархатный фон", ["category"] = "card", ["tier"] = 2, ["price"] = 1000, ["color"] = {74, 44, 65}, ["description"] = "Тёмная бархатная растяжка со спокойной геральдикой."},
-	{["id"] = "card_starmap", ["name"] = "Карта созвездий", ["category"] = "card", ["tier"] = 3, ["price"] = 4500, ["color"] = {39, 49, 83}, ["description"] = "Отдельный фон с мерцающим созвездием; титул выбирается независимо."},
+	{["id"] = "card_starmap", ["name"] = "Карта созвездий", ["category"] = "card", ["tier"] = 3, ["price"] = 4500, ["color"] = {39, 49, 83}, ["description"] = "Связанные звёзды и медленно плывущая туманность."},
+	{["id"] = "card_boreal", ["name"] = "Полярный поток", ["category"] = "card", ["tier"] = 3, ["price"] = 3600, ["color"] = {29, 91, 93}, ["description"] = "Изогнутые ленты сияния с бирюзовым и лиловым светом."},
+	{["id"] = "card_eclipse", ["name"] = "Затмение", ["category"] = "card", ["tier"] = 3, ["price"] = 5200, ["color"] = {43, 28, 76}, ["description"] = "Тёмный диск, вращающаяся корона и звёздная пыль."},
+	{["id"] = "card_horizon", ["name"] = "Линия горизонта", ["category"] = "card", ["tier"] = 2, ["price"] = 1500, ["color"] = {45, 78, 110}, ["description"] = "Геометрические горы, янтарный горизонт и солнечный диск."},
+	{["id"] = "card_tidal", ["name"] = "Приливное стекло", ["category"] = "card", ["tier"] = 2, ["price"] = 2200, ["color"] = {25, 91, 111}, ["description"] = "Три слоя волн с движущимися световыми каустиками."},
+	{["id"] = "card_geode", ["name"] = "Аметистовая грань", ["category"] = "card", ["tier"] = 3, ["price"] = 4800, ["color"] = {88, 48, 116}, ["description"] = "Кристаллические плоскости и светящиеся линии скола."},
+	{["id"] = "card_forge", ["name"] = "Чёрная чеканка", ["category"] = "card", ["tier"] = 2, ["price"] = 1900, ["color"] = {76, 49, 43}, ["description"] = "Медная гравировка, пересекающиеся насечки и жар под металлом."},
+	{["id"] = "frame_facet", ["name"] = "Кристальный венец", ["category"] = "frame", ["tier"] = 3, ["price"] = 3800, ["color"] = {178, 151, 255}, ["description"] = "Объёмные грани вокруг портрета и тонкая огранка карточки."},
+	{["id"] = "frame_wings", ["name"] = "Крылья ветра", ["category"] = "frame", ["tier"] = 3, ["price"] = 4300, ["color"] = {103, 226, 221}, ["description"] = "Два веера перьев вокруг аватара с плавным раскрытием."},
+	{["id"] = "frame_rift", ["name"] = "Разлом спектра", ["category"] = "frame", ["tier"] = 3, ["price"] = 6500, ["color"] = {242, 122, 199}, ["description"] = "Фрагменты орбиты и бегущий свет по разорванному контуру."},
 }}
 Decor.ById={}
 for _,d in ipairs(Decor.List)do Decor.ById[d.id]=d end

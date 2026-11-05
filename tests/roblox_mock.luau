@@ -95,7 +95,8 @@ function methods:SetNetworkOwner() end
 local gameMock=node("DataModel","game")
 gameMock.JobId="test";gameMock.CreatorId=99999;gameMock.CreatorType=enum.CreatorType.User
 local services={}
-for _,name in ipairs({"Players","ReplicatedStorage","ServerStorage","ServerScriptService","Workspace","DataStoreService","HttpService","RunService","TweenService","PhysicsService","SoundService","Debris","MarketplaceService","CollectionService"}) do services[name]=node(name,name,gameMock) end
+for _,name in ipairs({"Players","ReplicatedStorage","ServerStorage","ServerScriptService","Workspace","DataStoreService","HttpService","RunService","TweenService","PhysicsService","SoundService","Debris","MarketplaceService","CollectionService","AssetService"}) do services[name]=node(name,name,gameMock) end
+services.RunService.Heartbeat=signal()
 services.CollectionService.AddTag=function()end
 function gameMock:GetService(name) return assert(services[name],"Unexpected service "..name) end
 function gameMock:BindToClose(fn) self.close=fn end

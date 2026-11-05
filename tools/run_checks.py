@@ -23,6 +23,7 @@ run([args.luau,'tests/rarity.spec.luau'])
 run([args.luau,'tests/tutorial.spec.luau'])
 run([args.luau,'tests/timing.spec.luau'])
 run([args.luau,'tests/layout.spec.luau'])
+run([args.luau,'tests/identity.spec.luau'])
 bundle=(ROOT/'tests/roblox_mock.luau').read_text()+'\n'
 for path in sorted((ROOT/'src/Shared').glob('*.luau')):
     bundle+='register('+json.dumps(path.stem)+',function()\n'+path.read_text()+'\nend, shared)\n'
@@ -30,6 +31,7 @@ for path in sorted((ROOT/'src/Server').glob('*.luau')):
     name=path.name.replace('.server.luau','').replace('.luau','')
     bundle+='register('+json.dumps(name)+',function()\n'+path.read_text()+'\nend, services.ServerScriptService)\n'
 bundle+=(ROOT/'tests/server_flow.spec.luau').read_text()
+bundle+=(ROOT/'tests/avatar_animation.spec.luau').read_text()
 with tempfile.NamedTemporaryFile('w',suffix='.luau',prefix='proba-server-',delete=False) as f:f.write(bundle);temporary=f.name
 try:run([args.luau,temporary])
 finally:Path(temporary).unlink(missing_ok=True)

@@ -19,6 +19,7 @@ local Commerce=require(script.Parent.Commerce)
 local Tutorial=require(ReplicatedStorage.Shared.Tutorial)
 local Timing=require(ReplicatedStorage.Shared.CustomerTiming)
 local Presentation=require(ReplicatedStorage.Shared.Presentation)
+local Identity=require(ReplicatedStorage.Shared.Identity)
 local Workstation=require(script.Parent.Workstation)
 local Catalog = require(script.Parent.Catalog)
 local Profiles = require(script.Parent.Profiles)
@@ -101,6 +102,13 @@ local function casePacket(player, record)
 		timing=timing,
 		challenge = record.busy and Challenges.Public(record.busy) }
 end
+local function avatarStatus(player)
+	if not isAdmin(player)then return end
+	local s=Customers.sessions[player];local r=s and s.queue[1];local m=r and r.model
+	if not m then return end
+	return{name=r.name,status=m:GetAttribute("ProbaAnimationStatus")or"loading",clip=m:GetAttribute("ProbaPlayingClip")or 0,
+		walk=m:GetAttribute("ProbaWalkRequested")or 0,error=m:GetAttribute("ProbaAnimationError")}
+end
 
 sendSnapshot = function(player)
 	local s, p = sessions[player], Profiles.loaded[player]
@@ -120,6 +128,8 @@ sendSnapshot = function(player)
 	State:FireClient(player, { kind = "snapshot", cash = p.cash, available = availableCash(player), reputation = p.reputation,
 		baseLevel = p.baseLevel, specialty = p.specialty, specXP = p.specXP, equipment = p.equipment, stats = p.stats,
 		ownedDecor=p.ownedDecor,equippedDecor=p.equippedDecor,tutorial=Tutorial.State(p),
+		nametag=p.nametag,ownedNametags=p.ownedNametags,
+		avatarStatus=avatarStatus(player),
 		timersPaused=customerSession and customerSession.paused==true,
 		title = p.title, unlocked = Domain.unlockedTitles(p), seenCount = #p.seen, inventory = inv, heldUid = s.heldUid,
 		plot = if s.plot then s.plot.Name else nil, saveMode = s.saveMode, queue = if customerSession then #customerSession.queue else 0,
@@ -130,7 +140,7 @@ roster = function()
 	local rows = {}
 	for player, s in pairs(sessions) do
 		local p = Profiles.loaded[player]
-		if p then table.insert(rows, { userId = player.UserId, name = player.DisplayName, username = player.Name, title = p.title,
+		if p then table.insert(rows, { userId = player.UserId, name = player.DisplayName, username = player.Name, title = p.title,nametag=p.nametag,
 			frame=p.equippedDecor.frame or "frame_plain",card=p.equippedDecor.card or "card_paper",
 			reputation = p.reputation, specialty = p.specialty, level = Domain.specLevel(p.specXP[p.specialty]), plot = if s.plot then s.plot.Name else "Ожидает участок" }) end
 	end
@@ -521,8 +531,10 @@ end
 handlers.BuyDecor=function(player,data)
 	if type(data)~="table"or type(data.id)~="string"then return end
 	local d=Decor.ById[data.id];local p,s=Profiles.loaded[player],sessions[player]
-	if not d or not s.plot then return end
-	if not near(player,s.plot.Anchor.Position,105)then message(player,"Покупка обстановки доступна у своего бюро.");return end
+	if not d then return end
+	local personal=d.category=="card"or d.category=="frame"
+	if not personal and not s.plot then return end
+	if not personal and not near(player,s.plot.Anchor.Position,105)then message(player,"Покупка обстановки доступна у своего бюро.");return end
 	if not p.ownedDecor[d.id]then
 		if d.premium then Commerce.Prompt(player,d);return end
 		if availableCash(player)<d.price then message(player,"Не хватает монет на этот декор.","bad");return end
@@ -574,6 +586,16 @@ handlers.Title = function(player, data)
 	local p = Profiles.loaded[player]
 	if Domain.unlockedTitles(p)[data.id] then p.title = data.id; sendSnapshot(player); roster() end
 end
+handlers.BuyNametag=function(player,data)
+	if type(data)~="table"or type(data.id)~="string"then return end
+	local d=Identity.ById[data.id];local p=Profiles.loaded[player]
+	if not d then return end
+	if not p.ownedNametags[d.id]then
+		if availableCash(player)<d.price then message(player,"Не хватает монет на nametag.","bad");return end
+		p.cash-=d.price;p.ownedNametags[d.id]=true
+	end
+	p.nametag=d.id;sendSnapshot(player);roster()
+end
 handlers.Return = function(player)
 	local s = sessions[player]
 	if not s or not player.Character then return end
@@ -589,10 +611,12 @@ handlers.Admin = function(player, data)
 	if data.command == "funds" then p.cash = math.min(1000000000, p.cash + 25000)
 	elseif data.command == "reputation" then p.reputation = 75
 	elseif data.command == "tools" then for key in pairs(p.equipment) do p.equipment[key] = 3 end; applyEquipment(player)
-	elseif data.command == "titles" then
+	elseif data.command == "titles"or data.command=="identity"then
 		p.stats.good = math.max(10, p.stats.good); p.stats.fakes = math.max(5, p.stats.fakes)
 		p.stats.purchases = math.max(5, p.stats.purchases); p.stats.rare = math.max(1, p.stats.rare)
 		for _, def in ipairs(Catalog) do registerSeen(p, def.id) end
+		if data.command=="identity"then Identity.GrantAll(p)end
+	elseif data.command=="friendwalk"then Customers.Flush(player);Customers.Spawn(player,nil,false)
 	elseif data.command == "base" and s.plot then
 		for _, r in pairs(requests) do if r.appraiser == player then cancelRequest(r.id) end end
 		Customers.Detach(player)
@@ -665,7 +689,7 @@ Customers.Init(Catalog, index, {
 		if not player.Parent then return end
 		local s = Customers.sessions[player]; local active = Customers.Active(player)
 		State:FireClient(player, { kind = "pulse", queue = if s then #s.queue else 0, caseId = active and active.id,
-			patience = active and active.patience, mood = active and active.mood,timing=active and Timing.Public(active) })
+			patience = active and active.patience, mood = active and active.mood,timing=active and Timing.Public(active),avatarStatus=avatarStatus(player) })
 	end,
 })
 

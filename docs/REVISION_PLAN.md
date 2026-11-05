@@ -32,7 +32,7 @@ This document preserves the user's review and work state across quota interrupti
 
 ## Checkpoint
 
-Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`; revision 0.2: `aa0b3da`. Current revision **0.3** implements the [latest reported problems](REVISION_03.md), embedded in `build/PROBA.rbxlx`. The build retains 100 items, 91 geometry families, three buildings and six plots. UI previews come from actual constructor execution with substitute services; geometry previews use Blender. Neither is a Studio screenshot.
+Initial complete prototype: `77324d2`; first revision checkpoint: `dc37f49`; revision 0.2: `aa0b3da`; revision 0.3: `f35a6f5`. Current revision **0.4** implements the [animation pack and identity review](REVISION_04.md), embedded in `build/PROBA.rbxlx`. It uses server Animator tracks from friends' descriptions and independent title/nametag/background/frame selections. The build retains 100 items, 91 geometry families, three buildings and six plots. External previews are not Studio screenshots.
 
 Automated checks now include real client constructors/actions, R6/R15 animation control paths, individual visitor clocks, layout bounds and physical collection regression tests with an intentional optional-FX failure, alongside existing economy/visits/rarity/save/receipt/XML/API/geometry checks. Exact current output is produced by `python tools/run_checks.py`.
 

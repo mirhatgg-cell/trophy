@@ -29,6 +29,7 @@ function Motion.Start()
 	RunService.PreSimulation:Connect(function()
 		local now=os.clock();local camera=workspace.CurrentCamera
 		for model,state in pairs(rigs)do
+			if model:GetAttribute("ProbaNativeActive")==true then continue end -- Animator owns these joints; do not overwrite its tracks.
 			if now>=state.nextScan then state.nextScan=now+2;state.scan()end
 			local root=model:FindFirstChild("HumanoidRootPart")
 			if not root or not model:IsDescendantOf(workspace)or(camera and(root.Position-camera.CFrame.Position).Magnitude>210)then continue end

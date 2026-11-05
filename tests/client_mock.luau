@@ -7,7 +7,7 @@ local colorMeta={};colorMeta.__index={Lerp=function(a,b,t)return setmetatable({R
 local Color={new=function(r,g,b)return setmetatable({R=r or 0,G=g or 0,B=b or 0},colorMeta)end}
 Color.fromRGB=function(r,g,b)return Color.new(r/255,g/255,b/255)end
 Color.fromHSV=function(h,s,v)local k=math.floor(h*6);local f=h*6-k;local p=v*(1-s);local q=v*(1-f*s);local t=v*(1-(1-f)*s);local rgb=({{v,t,p},{q,v,p},{p,v,t},{p,q,v},{t,p,v},{v,p,q}})[k%6+1];return Color.new(unpack(rgb))end
-local guiClasses={Frame=true,TextLabel=true,TextButton=true,TextBox=true,ScrollingFrame=true,ImageLabel=true,ViewportFrame=true}
+local guiClasses={Frame=true,CanvasGroup=true,TextLabel=true,TextButton=true,TextBox=true,ScrollingFrame=true,ImageLabel=true,ViewportFrame=true}
 local events={MouseEnter=true,MouseLeave=true,Activated=true,InputBegan=true,InputChanged=true,InputEnded=true,ChildAdded=true,DescendantAdded=true,CharacterAdded=true}
 local originalIndex=nodeMeta.__index
 nodeMeta.__index=function(n,k)
@@ -40,6 +40,7 @@ function methods:CaptureFocus()services.UserInputService.focused=self end
 function methods:GetScale()return 1 end
 env.UDim=U;env.UDim2=D;env.Vector2=Vector;env.Color3=Color
 env.ColorSequence={new=function(...)return{...}end};env.ColorSequenceKeypoint={new=function(...)return{...}end}
+env.NumberSequence={new=function(...)return{...}end};env.NumberSequenceKeypoint={new=function(...)return{...}end}
 cfMeta.__index.RightVector=Vector.new(1,0,0)
 cfMeta.__index.VectorToObjectSpace=function(_,v)return v end
 CF.fromAxisAngle=function(_,angle)local cf=CF.new();cf.angle=angle;return cf end
@@ -99,9 +100,11 @@ local function capture(name)
 				ancestor=ancestor.Parent
 			end
 			local border=n:FindFirstChildOfClass("UIStroke")
+			local g=n:FindFirstChildOfClass("UIGradient")
 			table.insert(objects,{class=n.ClassName,x=p.X,y=p.Y,w=s.X,h=s.Y,text=if n.ClassName=="TextBox"and n.Text==""then n.PlaceholderText or""else n.Text,size=n.TextSize or 12,
 				alpha=n.BackgroundTransparency,color=color,ink=ink,radius=r and(r.CornerRadius.Offset+r.CornerRadius.Scale*math.min(s.X,s.Y))or 0,
-				z=n.ZIndex,rotation=n.Rotation,clip=clip,border=border and border.Color,thickness=border and border.Thickness or 0,align=n.TextXAlignment,font=n.Font})
+				z=n.ZIndex,rotation=n.Rotation,clip=clip,border=border and border.Color,thickness=border and border.Thickness or 0,align=n.TextXAlignment,font=n.Font,
+				gradient=g and{colors=g.Color,alpha=g.Transparency,rotation=g.Rotation or 0},wrap=n.TextWrapped==true})
 		end
 	end
 	print("UI_SNAPSHOT "..json({name=name,width=dimensions.w,height=dimensions.h,objects=objects}))

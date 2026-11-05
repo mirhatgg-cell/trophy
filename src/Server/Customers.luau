@@ -9,6 +9,7 @@ local Stories = require(game.ReplicatedStorage.Shared.Stories)
 local Rarity = require(game.ReplicatedStorage.Shared.Rarity)
 local Timing = require(game.ReplicatedStorage.Shared.CustomerTiming)
 local CollectionService=game:GetService("CollectionService")
+local AvatarAnimations=require(script.Parent.AvatarAnimations)
 
 local Customers = { sessions = {}, actors = {} }
 local callbacks, catalog, byId
@@ -244,7 +245,7 @@ function Customers.Spawn(player, forcedId, immediate, overrides)
 	end
 	table.insert(session.queue, record)
 	task.spawn(function()
-		local model
+		local model,description
 		if friend then
 			if not descriptionCache[friend.id] then
 				local got, description = pcall(function() return Players:GetHumanoidDescriptionFromUserIdAsync(friend.id) end)
@@ -252,12 +253,14 @@ function Customers.Spawn(player, forcedId, immediate, overrides)
 			end
 		end
 		if friend and descriptionCache[friend.id] then
+			description=descriptionCache[friend.id]
 			local ok, result = pcall(function() return Players:CreateHumanoidModelFromDescriptionAsync(descriptionCache[friend.id], Enum.HumanoidRigType.R15) end)
 			if ok then model = result end
 		end
 		if not model then model = game.ServerStorage.Templates.BaconCustomer:Clone() end
 		if not session.alive or not table.find(session.queue, record) then model:Destroy(); return end
 		model.Name = "Customer_" .. string.sub(record.id, 1, 8)
+		local captured=AvatarAnimations.Capture(model)
 		record.model = model; record.humanoid = decorate(model, displayName, def.spec)
 		Customers.actors[record] = session
 		local primary = model:FindFirstChild("HumanoidRootPart")
@@ -266,6 +269,7 @@ function Customers.Spawn(player, forcedId, immediate, overrides)
 		model:PivotTo(session.plot.Anchor.CFrame * (if immediate then CFrame.new(0, 4.2, -1) * CFrame.Angles(0, math.pi, 0) else CFrame.new(46, 3.2, -94)))
 		local root = model:FindFirstChild("HumanoidRootPart")
 		if root then pcall(function() root:SetNetworkOwner(nil) end) end
+		record.animationDriver=AvatarAnimations.Attach(model,description,captured)
 		if immediate then record.slot = 1; record.arrived = true; setMood(record, "think", record.item.story)
 		else walkToSlot(session, record, table.find(session.queue, record)) end
 		callbacks.changed(player)

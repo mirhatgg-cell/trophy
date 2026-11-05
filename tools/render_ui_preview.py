@@ -7,6 +7,10 @@ snapshots=json.loads((root/'build/ui-state.json').read_text())
 def rgb(c,alpha=1):
     if not c:return 'transparent'
     return f'rgba({round(c["R"]*255)},{round(c["G"]*255)},{round(c["B"]*255)},{alpha})'
+def keys(sequence):
+    if not isinstance(sequence,list)or not sequence:return []
+    if len(sequence)==1 and isinstance(sequence[0],list):return sequence[0]
+    return [[i/max(1,len(sequence)-1),v]for i,v in enumerate(sequence)]
 with sync_playwright()as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
     for state in snapshots:
@@ -22,6 +26,16 @@ with sync_playwright()as p:
             align='left'if str(o.get('align','')).endswith('Left')else'center'
             bold='bold'if 'Bold'in str(o.get('font'))or'Black'in str(o.get('font'))else'normal'
             style+=f'text-align:{align};font-weight:{bold};'
+            if not o.get('wrap'):style+='white-space:nowrap;text-overflow:ellipsis;'
+            if o['rotation']:style+=f'transform:rotate({o["rotation"]}deg);'
+            g=o.get('gradient')
+            if g:
+                stops=','.join(f'{rgb(value)} {time*100}%'for time,value in keys(g.get('colors')))
+                if stops:
+                    if o['class']in ('TextLabel','TextButton','TextBox'):style+=f'background-image:linear-gradient({g["rotation"]+90}deg,{stops});background-clip:text;color:transparent;'
+                    else:style+=f'background-image:linear-gradient({g["rotation"]+90}deg,{stops});'
+                opacity=','.join(f'rgba(0,0,0,{1-value}) {time*100}%'for time,value in keys(g.get('alpha')))
+                if opacity:style+=f'mask-image:linear-gradient({g["rotation"]+90}deg,{opacity});'
             content=html.escape(o.get('text','')).replace('\n','<br>')
             if o['class']=='ViewportFrame':content='<span style="opacity:.4;font-size:10px;color:#a0acb7">3D VIEWPORT / отображается движком Roblox</span>'
             blocks.append('<div style="'+style+'"><span>'+content+'</span></div>')
