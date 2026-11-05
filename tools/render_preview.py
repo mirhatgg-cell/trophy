@@ -29,7 +29,10 @@ for p in scene:
     if p['material']==1568:continue
     key=mat(p['color'],p['alpha'],p['material']);verts,faces=groups.setdefault(key,([],[]))
     base=len(verts);size=p['size'];r=Matrix(p['rotation']);pos=Vector(p['position'])
-    if p['shape']==0:
+    if p['class']=='WedgePart':
+        v=[(-.5,-.5,-.5),(.5,-.5,-.5),(-.5,-.5,.5),(.5,-.5,.5),(-.5,.5,.5),(.5,.5,.5)]
+        f=[(0,2,3,1),(2,4,5,3),(0,1,5,4),(0,4,2),(1,3,5)]
+    elif p['shape']==0:
         v=[];f=[];segments=12;rings=7
         for j in range(rings+1):
             phi=math.pi*j/rings

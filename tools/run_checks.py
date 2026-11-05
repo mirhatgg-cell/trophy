@@ -16,6 +16,7 @@ def run(argv,**kw):
 for path in sorted((ROOT/'src').rglob('*.luau')):
     run([args.compiler,str(path)],stdout=subprocess.DEVNULL)
 print('PASS Luau compilation',flush=True)
+run([sys.executable,'tests/geometry_art_test.py'])
 run([args.luau,'tests/economy.spec.luau'])
 run([args.luau,'tests/visits.spec.luau'])
 run([args.luau,'tests/challenges.spec.luau'])
@@ -32,6 +33,7 @@ for path in sorted((ROOT/'src/Server').glob('*.luau')):
     bundle+='register('+json.dumps(name)+',function()\n'+path.read_text()+'\nend, services.ServerScriptService)\n'
 bundle+=(ROOT/'tests/server_flow.spec.luau').read_text()
 bundle+=(ROOT/'tests/avatar_animation.spec.luau').read_text()
+bundle+=(ROOT/'tests/queue_flow.spec.luau').read_text()
 with tempfile.NamedTemporaryFile('w',suffix='.luau',prefix='proba-server-',delete=False) as f:f.write(bundle);temporary=f.name
 try:run([args.luau,temporary])
 finally:Path(temporary).unlink(missing_ok=True)

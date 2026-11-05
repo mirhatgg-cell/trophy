@@ -88,6 +88,12 @@ local function capture(name)
 	local objects={}
 	for _,n in ipairs(allNodes)do
 		if guiClasses[n.ClassName]and shown(n)then
+			local artAncestor=n.Parent;local insideArt=false
+			while artAncestor do
+				if artAncestor:GetAttribute("ArtworkKey")and artAncestor:GetAttribute("ArtworkBackend")=="EditableImage"then insideArt=true;break end
+				artAncestor=artAncestor.Parent
+			end
+			if insideArt then continue end
 			local p,s=n.AbsolutePosition,n.AbsoluteSize
 			local color=n.BackgroundColor3;local ink=n.TextColor3;local r=n:FindFirstChildOfClass("UICorner")
 			local clip={x=0,y=0,w=dimensions.w,h=dimensions.h};local ancestor=n.Parent
@@ -101,10 +107,16 @@ local function capture(name)
 			end
 			local border=n:FindFirstChildOfClass("UIStroke")
 			local g=n:FindFirstChildOfClass("UIGradient")
+			local opacity=1;local group=n
+			while group do
+				if group.ClassName=="CanvasGroup"then opacity*=1-(group.GroupTransparency or 0)end
+				group=group.Parent
+			end
 			table.insert(objects,{class=n.ClassName,x=p.X,y=p.Y,w=s.X,h=s.Y,text=if n.ClassName=="TextBox"and n.Text==""then n.PlaceholderText or""else n.Text,size=n.TextSize or 12,
 				alpha=n.BackgroundTransparency,color=color,ink=ink,radius=r and(r.CornerRadius.Offset+r.CornerRadius.Scale*math.min(s.X,s.Y))or 0,
 				z=n.ZIndex,rotation=n.Rotation,clip=clip,border=border and border.Color,thickness=border and border.Thickness or 0,align=n.TextXAlignment,font=n.Font,
-				gradient=g and{colors=g.Color,alpha=g.Transparency,rotation=g.Rotation or 0},wrap=n.TextWrapped==true})
+				gradient=g and{colors=g.Color,alpha=g.Transparency,rotation=g.Rotation or 0},wrap=n.TextWrapped==true,
+				artwork=n:GetAttribute("ArtworkKey"),backend=n:GetAttribute("ArtworkBackend"),groupAlpha=1-opacity})
 		end
 	end
 	print("UI_SNAPSHOT "..json({name=name,width=dimensions.w,height=dimensions.h,objects=objects}))

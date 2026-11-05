@@ -1,7 +1,7 @@
 local Config = {}
 
 Config.Name = "PROBA · Appraisal & Antiques"
-Config.Version = "0.4.0"
+Config.Version = "0.5.0"
 Config.ProfessionIconAtlas = 0 -- Upload assets/icons/professions.png and set its genuine Roblox image ID.
 Config.ProfessionIconCell = { width = 0, height = 0 } -- Filled from the generated atlas manifest.
 Config.ProfessionIconRects = {{47,172,335,392}, {449,200,369,361}, {876,173,375,398}, {1303,187,385,378}, {1747,185,378,372}} -- Optional exact source rectangles from assets/manifest.json.

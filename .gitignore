@@ -4,3 +4,5 @@ __pycache__/
 build/scene.json
 build/ui-state.json
 build/*.blend
+build/item-scene.json
+build/identity/

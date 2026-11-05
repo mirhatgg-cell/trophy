@@ -123,9 +123,14 @@ end
 local function move(record, session, points, token, leaving)
 	local root = record.model and record.model:FindFirstChild("HumanoidRootPart")
 	if not root or not record.humanoid then return false end
+	if not record.model.Parent or record.moveToken~=token or(not leaving and not session.alive)then return false end
+	local function stop()
+		-- A cancelled route must not stop the newer route's animation.
+		if record.moveToken==token then walking(record,false)end
+	end
 	walking(record,true)
 	for _, point in ipairs(points) do
-		if not record.model.Parent or record.moveToken ~= token or (not leaving and not session.alive) then walking(record,false); return false end
+		if not record.model.Parent or record.moveToken ~= token or (not leaving and not session.alive) then stop(); return false end
 		local target = world(session, point.X, point.Y, point.Z)
 		record.humanoid:MoveTo(target)
 		local deadline = os.clock() + math.max(5, (root.Position - target).Magnitude / 7 + 2)
@@ -133,31 +138,36 @@ local function move(record, session, points, token, leaving)
 			if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude < 2 then break end
 			task.wait(0.15)
 		end
-		if not root.Parent or record.moveToken ~= token then walking(record,false); return false end
-		if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude >= 5 then walking(record,false); return false end
+		if not root.Parent or record.moveToken ~= token then stop(); return false end
+		if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude >= 5 then stop(); return false end
 	end
-	walking(record,false)
+	stop()
 	return true
 end
 
 local function walkToSlot(session, record, index)
-	local wasInside = record.arrived and record.slot ~= nil
-	record.previousSlot = record.slot
-	record.slot = index; record.arrived = false
+	local root=record.model:FindFirstChild("HumanoidRootPart")
+	local localPosition=if root then session.plot.Anchor.CFrame:PointToObjectSpace(root.Position)else nil
+	local wasInside=record.inside or(record.arrived and record.slot~=nil)or(localPosition and localPosition.Z>=-9)
+	record.inside=wasInside==true
+	record.slot = index
+	local slot = Config.QueueSlots[index]
+	local points = if wasInside then { Vector3.new(if localPosition then localPosition.X else slot[1],3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
+		else { Vector3.new(0,3,-48), Vector3.new(0,3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
+	local position=if root then root.Position else world(session,46,3,-94)
+	local distance=0
+	for _,point in ipairs(points)do local target=world(session,point.X,point.Y,point.Z);distance+=(target-position).Magnitude;position=target end
+	Timing.StartRoute(record,os.clock(),math.max(30,distance/7+#points*4+8))
 	record.moveToken += 1
 	local token = record.moveToken
 	task.spawn(function()
-		local points
-		local slot = Config.QueueSlots[index]
-		local old = Config.QueueSlots[record.previousSlot or index]
-		points = if wasInside then { Vector3.new(old[1],3,-8.5), Vector3.new(0,3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
-			else { Vector3.new(0,3,-48), Vector3.new(0,3,-8.5), Vector3.new(slot[1],3,-8.5), Vector3.new(slot[1],3,slot[2]) }
 		if move(record, session, points, token) and session.alive and record.moveToken == token then
-			record.arrived = true
+			Timing.Arrive(record)
+			record.inside=true
 			if index == 1 then
 				record.humanoid:MoveTo(world(session, 0, 3, -1))
 				local root = record.model:FindFirstChild("HumanoidRootPart")
-				if root then root.CFrame = CFrame.lookAt(root.Position, world(session, 0, root.Position.Y, 10)) end
+				if root then local facing=world(session,0,3,10);root.CFrame=CFrame.lookAt(root.Position,Vector3.new(facing.X,root.Position.Y,facing.Z))end
 				setMood(record, "think", record.item.story)
 			end
 			callbacks.changed(session.player)
@@ -238,7 +248,7 @@ function Customers.Spawn(player, forcedId, immediate, overrides)
 	if #session.friends > 0 and not friend then return false end
 	local displayName = if friend then friend.name else ({ "Алекс · классический гость", "Робин · классический гость", "Сэм · классический гость", "Бэкон · классический гость" })[rng:NextInteger(1, 4)]
 	local record = { id = HttpService:GenerateGUID(false), item = Customers.NewItem(def, profile.reputation), name = displayName,
-		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", age = 0, friendId = friend and friend.id,requiredSpec=def.spec }
+		patience = 1, tests = {}, negotiations = 0, moveToken = 0, arrived = false, mood = "neutral", loadingDeadline=os.clock()+120, friendId = friend and friend.id,requiredSpec=def.spec }
 	if type(overrides)=="table"then
 		if overrides.mutation=="none"or Rarity.Definitions[overrides.mutation]then record.item.mutation=overrides.mutation end
 		if Domain.finite(overrides.uniqueness)then record.item.uniqueness=math.floor(math.clamp(overrides.uniqueness,0,100)*10+.5)/10 end
@@ -270,7 +280,7 @@ function Customers.Spawn(player, forcedId, immediate, overrides)
 		local root = model:FindFirstChild("HumanoidRootPart")
 		if root then pcall(function() root:SetNetworkOwner(nil) end) end
 		record.animationDriver=AvatarAnimations.Attach(model,description,captured)
-		if immediate then record.slot = 1; record.arrived = true; setMood(record, "think", record.item.story)
+		if immediate then record.slot = 1;record.inside=true; Timing.Arrive(record); setMood(record, "think", record.item.story)
 		else walkToSlot(session, record, table.find(session.queue, record)) end
 		callbacks.changed(player)
 	end)
@@ -322,7 +332,6 @@ function Customers.Init(definitions, index, handlers)
 				end
 				local expired = {}
 				for index, r in ipairs(s.queue) do
-					r.age += 1
 					Timing.Step(r,index==1,1,os.clock(),s.paused or(index==1 and callbacks.servicePause and callbacks.servicePause(player)))
 					if r.model and r.arrived then
 						local fill=r.model:FindFirstChild("PersonalPatienceFill",true)
@@ -333,7 +342,7 @@ function Customers.Init(definitions, index, handlers)
 							label.Text=Config.Specs[r.requiredSpec].name.." · "..(if r.clockPaused then"пауза"else string.format("%d:%02d",math.floor(t/60),t%60))
 						end
 					end
-					if r.routeFailed or r.patience <= 0 or (not r.arrived and r.age > 60) then table.insert(expired, r)
+					if Timing.Expired(r,os.clock()) then table.insert(expired, r)
 					elseif r.arrived and (r.moodLock or 0) < os.clock() then
 						local mood = if r.patience < 0.2 then "angry" elseif r.patience < 0.4 then "sad" elseif r.patience < 0.6 then "sigh" elseif index == 1 then "think" else "neutral"
 						if mood ~= r.mood then setMood(r, mood) end

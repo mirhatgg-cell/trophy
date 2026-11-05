@@ -145,7 +145,7 @@ local function viewport(parent,id,x,y,w,h,item,folder)
 	if item then local ok,err=pcall(Appearance.Apply,model,item);if not ok then warn("[PROBA] Preview appearance",id,err);text(frame,"Эффект не загрузился; модель доступна",9,C.red,UDim2.fromOffset(8,h-22),UDim2.fromOffset(w-16,20))end end
 	local center,size=Presentation.Bounds(model)
 	local camera=make("Camera",{FieldOfView=38},frame);frame.CurrentCamera=camera
-	local state={frame=frame,camera=camera,target=center,size=math.max(size.X,size.Y,size.Z,1),yaw=.4,pitch=.35,dragging=false,last=nil,resume=0};table.insert(views,state)
+	local state={frame=frame,camera=camera,target=center,size=math.max(size.X,size.Y,size.Z,1),yaw=math.pi-.4,pitch=.35,dragging=false,last=nil,resume=os.clock()+1.5};table.insert(views,state)
 	table.insert(connections,frame.InputBegan:Connect(function(input)if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then state.dragging=true;state.last=input.Position end end))
 	table.insert(connections,Input.InputChanged:Connect(function(input)
 		if state.dragging and state.last and(input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch)then state.yaw+=(input.Position.X-state.last.X)*.012;state.pitch=math.clamp(state.pitch+(input.Position.Y-state.last.Y)*.009,-1.15,1.2);state.last=input.Position;state.resume=os.clock()+2 end

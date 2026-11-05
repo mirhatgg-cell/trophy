@@ -1,4 +1,10 @@
 {
+  "identity_art": {
+    "files": ["identity/anime-auras.png", "identity/anime-frames.png", "identity/anime-banners.png"],
+    "illustrations": 22,
+    "packed_file": "content/identity_art.json",
+    "status": "embedded RGBA textures with GUI fallback; no uploaded asset ID needed"
+  },
   "profession_icons": {
     "file": "icons/professions.png",
     "size": [

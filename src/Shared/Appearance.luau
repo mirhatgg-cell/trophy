@@ -81,7 +81,11 @@ function Appearance.Apply(model,item)
 		local kind=if p.Material==Enum.Material.Wood or p.Material==Enum.Material.WoodPlanks then "walnut"
 			elseif p.Name=="PaperBlock"or p.Name=="Parchment"or p.Name=="ArtifactSlab"then "paper"
 			elseif p.Material==Enum.Material.Metal then "steel"else nil
-		if kind and decorated<3 then surface(p,kind,seed+decorated,item.repair==true and decorated==0);decorated+=1 end
+		-- SurfaceGui rectangles belong on flat block faces, not the bounding
+		-- rectangles of wedges/spheres, where patches would float off the model.
+		if kind and decorated<3 and p:IsA("Part")and p.Shape==Enum.PartType.Block then
+			surface(p,kind,seed+decorated,item.repair==true and decorated==0);decorated+=1
+		end
 	end
 	for i,p in ipairs(originals)do
 		p.Color=p.Color:Lerp(Color3.fromRGB(110,96,72),(1-condition)*.2)
@@ -90,7 +94,7 @@ function Appearance.Apply(model,item)
 		if p.Name=="HollowCupWall"and i%17==0 and item.repair==true then surface(p,"porcelain",seed,true)end
 		if p.Name=="MakerInlay"then ornament(p,seed,false)end
 		if condition<.55 and p.Name:match("^Lip_")and tonumber(p.Name:match("(%d+)$"))==seed%24 then p.Transparency=1 end
-		if i%11==seed%11 and condition<.8 then
+		if i%11==seed%11 and condition<.8 and p:IsA("Part")and p.Shape==Enum.PartType.Block then
 			local grime=Instance.new("SurfaceGui");grime.Name="SurfaceWear";grime.Face=Enum.NormalId.Front;grime.CanvasSize=Vector2.new(64,64);grime.LightInfluence=1;grime.ZOffset=.006;grime.Parent=p
 			for j=1,3 do
 				local patch=Instance.new("Frame");patch.BorderSizePixel=0;patch.BackgroundColor3=Color3.fromRGB(93,73,48);patch.BackgroundTransparency=.45+condition*.4
@@ -124,7 +128,9 @@ function Appearance.Apply(model,item)
 		elseif id=="ghost"then
 			for i=1,math.min(12,#originals)do
 				local source=originals[math.max(1,math.floor(i*#originals/math.min(12,#originals)))]
-				local echo=part(fx,"PhasedSilhouette",source.Size,source.CFrame,color,Enum.Material.Glass,.88,source:IsA("Part")and source.Shape or Enum.PartType.Block)
+				-- Preserve faceted wedges and other authored silhouettes in the echo.
+				local echo=source:Clone();echo:ClearAllChildren();echo.Name="PhasedSilhouette";echo.Color=color;echo.Material=Enum.Material.Glass
+				echo.Transparency=.88;echo.Anchored=true;echo.CanCollide=false;echo.CanTouch=false;echo.CanQuery=false;echo.Parent=fx
 				motion(echo,"phase",model,i*.5)
 			end
 		elseif id=="verdant"then

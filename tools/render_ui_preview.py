@@ -28,6 +28,12 @@ with sync_playwright()as p:
             style+=f'text-align:{align};font-weight:{bold};'
             if not o.get('wrap'):style+='white-space:nowrap;text-overflow:ellipsis;'
             if o['rotation']:style+=f'transform:rotate({o["rotation"]}deg);'
+            if o.get('groupAlpha'):style+=f'opacity:{1-o["groupAlpha"]};'
+            if o.get('artwork')and o.get('backend')!='GuiPainting':
+                import base64
+                png=root/'build/identity'/(o['artwork']+'.png')
+                uri=base64.b64encode(png.read_bytes()).decode()
+                style+=f'background:url(data:image/png;base64,{uri}) 0 0/100% 100% no-repeat;opacity:{1-o.get("groupAlpha",0)};'
             g=o.get('gradient')
             if g:
                 stops=','.join(f'{rgb(value)} {time*100}%'for time,value in keys(g.get('colors')))

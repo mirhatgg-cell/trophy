@@ -1,5 +1,21 @@
 -- One clock per visitor. Waiting never consumes the service budget.
 local Timing={ServiceSeconds=300,QueueSeconds=900,ServiceGrace=20}
+-- Loading and every individual journey have their own deadlines. A visitor may
+-- wait for several appraisals before moving again; their total age is irrelevant.
+function Timing.StartRoute(record,now,seconds)
+	record.arrived=false;record.routeFailed=false
+	record.loadingDeadline=nil;record.routeDeadline=now+seconds
+end
+function Timing.Arrive(record)
+	record.arrived=true;record.routeDeadline=nil;record.loadingDeadline=nil;record.routeFailed=false
+end
+function Timing.Expired(record,now)
+	if record.leaving then return false end
+	if record.patience<=0 or record.routeFailed then return true end
+	if record.arrived then return false end
+	local deadline=record.routeDeadline or record.loadingDeadline
+	return deadline~=nil and now>deadline
+end
 function Timing.Step(record,serving,dt,now,paused)
 	if not record.arrived or record.leaving then return end
 	local phase=if serving then "service"else "queue"

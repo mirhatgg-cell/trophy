@@ -17,4 +17,15 @@ local before=records[3].patience;T.Step(records[3],false,1,522,true)
 check(records[3].patience==before,"The admin pause must stop the selected bureau clock")
 local late={arrived=false,patience=1,item={visualSeed=1}}
 T.Step(late,true,5,1000,false);check(late.patience==1,"Travel and avatar loading must not consume patience")
+for _,waited in ipairs({61,300,600,899})do
+	local nextVisitor={arrived=true,patience=.4,age=waited,item={visualSeed=7}}
+	T.StartRoute(nextVisitor,waited,45)
+	check(not T.Expired(nextVisitor,waited+1),"A long wait must not expire a freshly promoted route")
+	T.Arrive(nextVisitor);T.Step(nextVisitor,true,1,waited+8,false)
+	check(not T.Expired(nextVisitor,waited+900)and nextVisitor.patience==1,"Arriving clears the route deadline and grants fresh service time")
+end
+T.StartRoute(late,1000,45)
+check(not T.Expired(late,1044)and T.Expired(late,1046),"A genuinely stuck route must still have a finite independent timeout")
+late.loadingDeadline=2000;late.routeDeadline=nil
+check(not T.Expired(late,1999)and T.Expired(late,2001),"Avatar loading has a separate bounded lifetime")
 print("PASS independent customer clocks:",count,"assertions")

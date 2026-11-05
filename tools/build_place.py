@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from item_geometry import solid, rings, transform, truncate
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build"
@@ -657,11 +658,36 @@ def make_item(parent, definition):
         ba("PressedBowl",(1.25,.25,1.75),(0,.2,1.1))
         ba("ConcaveReflection",(.96,.055,1.39),(0,.34,1.1),"iron")
         ri("HandleFinial",(0,.16,-1.65),.17,.08,plane="xz")
-    elif kind in ("rock","shard","arrowhead","tooth"):
-        p("Core",(1.8, .55,2.3),(0,.5,0),rotation=(4,12,7),cls="WedgePart")
-        for i in range(5): p("KnappedFacet",(.85,.3,1.1),((i%2-.5)*.8,.65+i*.06,-.7+i*.3),rotation=(i*13,30+i*37,8),cls="WedgePart")
-        if kind=="tooth": p("SerratedCrown",(1.7,2.6,.4),(0,1.6,0),rotation=(0,0,0),cls="WedgePart");p("FossilRoot",(2.1,.55,.55),(0,.35,0),"stone","Slate")
-        if kind=="arrowhead": beam(m,"Tang",(0,.5,-.5),(0,.5,-1.6),.3,color)
+    elif kind=="rock":
+        v,f=rings([(.05,0),(.12,.72),(.48,1),(.82,.76),(.91,0)],9,oval=(1.12,.87))
+        v=[(x*(1+.06*math.sin(i*2.3)),y,z*(1+.08*math.cos(i*1.7)))for i,(x,y,z)in enumerate(v)]
+        solid(part,m,'RiverWornStone',v,f,(129,135,126),'Slate',0)
+    elif kind=="shard":
+        outline=[(-1.1,-.65),(-.35,-1.05),(.95,-.68),(1.15,.15),(.25,1),(-.85,.75)]
+        v=[(x,.2+.07*x*x+layer*.14,z)for layer in (0,1)for x,z in outline]
+        f=[]
+        for i in range(1,5):f.extend(((0,i+1,i),(6,6+i,7+i)))
+        for i in range(6):j=(i+1)%6;f.extend(((i,j,6+i),(j,6+j,6+i)))
+        solid(part,m,'CurvedPotteryFragment',v,f,PALETTE['clay'],'Slate',0)
+        for i in range(4):beam(m,'IncisedPotteryBand',(-.8,.39+i*.003,-.5+i*.33),(.7,.39+i*.003,-.5+i*.33),.025,'cream','Slate')
+    elif kind=="arrowhead":
+        if definition['id']=='a02':
+            v,f=rings([(.08,0),(.13,.8),(.31,1),(.57,.59),(.64,0)],8,oval=(1.1,.85),twist=.06)
+            solid(part,m,'KnappedFlintScraper',v,f,(109,116,108),'Slate',0)
+        else:
+            v=[(0,.28,-1.6),(-.77,.25,.3),(0,.22,1.08),(.77,.25,.3),(0,.53,.06),(0,.10,.06)]
+            f=[(4,i,(i+1)%4)for i in range(4)]+[(5,(i+1)%4,i)for i in range(4)]
+            solid(part,m,'BronzeLeafSpear',v,f,PALETTE['copper'],'Metal',0)
+            beam(m,'TaperedTang',(0,.24,.9),(0,.24,1.78),.18,'copper')
+    elif kind=="tooth":
+        v=[(0,.30,-1.65),(-.94,.28,.6),(.94,.28,.6),(0,.65,.22),(0,.12,.22)]
+        f=[(3,0,1),(3,1,2),(3,2,0),(4,1,0),(4,2,1),(4,0,2)]
+        solid(part,m,'EnamelCrown',v,f,(167,153,119),'SmoothPlastic',0)
+        for side in (-1,1):
+            ba('TwoLobedPorousRoot',(.94,.45,.76),(side*.52,.28,.83),'stone','Slate')
+            for i in range(1,8):
+                z=-1.65+i*2.23/8;x=side*i*.94/8
+                p('IndividualSerration',(.10,.10,.14),(x,.30,z),'ivory',rotation=(0,side*23,0),cls='WedgePart')
     elif kind in ("mug","cup"):
         radius=.9 if kind=="mug" else 1.1
         cy("ClosedBase",radius,.16,(0,.1,0))
@@ -746,8 +772,13 @@ def make_item(parent, definition):
                 for i in range(8):
                     t=i*math.pi/4;ba("Rivet",(.17,.17,.22),(math.sin(t)*radius,1.3+math.cos(t)*radius,-.1),"gold")
         elif kind=="necklace":
-            for i in range(24):
-                t=i*math.pi/12;ba("IndividualBead",(.31,.31,.31),(math.sin(t)*1.5,.25,math.cos(t)*1.1),color)
+            beads=24 if definition['id']=='j04'else 16
+            for i in range(beads):
+                t=i*2*math.pi/beads;x,z=math.sin(t)*1.5,math.cos(t)*1.1
+                if definition['id']=='j04':ba("CulturedPearl",(.28,.28,.28),(x,.25,z),'ivory','SmoothPlastic')
+                else:
+                    p('GlazedFaienceTube',(.34,.36,.36),(x,.25,z),'mint','SmoothPlastic',rotation=(0,math.degrees(t),0),shape=2)
+                    ba('ClaySpacer',(.11,.11,.11),(math.sin(t+.13)*1.5,.25,math.cos(t+.13)*1.1),'clay')
             p("Clasp",(.4,.16,.2),(0,.25,-1.15),"silver")
         elif kind in ("cufflinks","earrings"):
             for side in (-1,1):
@@ -755,10 +786,23 @@ def make_item(parent, definition):
                 beam(m,"Post",(side*.85,.65,.1),(side*.85,.65,.8),.08,"silver")
                 if kind=="earrings": ri("EarHook",(side*.85,1.4,0),.35,.055,"silver",plane="xy",arc=250,start=-30)
         else:
-            p("Backing",(1.9,2.4,.25),(0,1.3,0),"gold" if kind=="cameo" else "silver",rotation=(0,0,0),shape=0)
-            ba("StoneOrPortrait",(1.55,2.05,.35),(0,1.3,-.18))
+            if definition['id']=='j17':
+                v=[(-.8,.35,-.12),(.8,.35,-.12),(.67,2.13,-.12),(-.67,2.13,-.12),(-.8,.35,.14),(.8,.35,.14),(.67,2.13,.14),(-.67,2.13,.14)]
+                f=[(0,2,1),(0,3,2),(4,5,6),(4,6,7),(0,1,5),(0,5,4),(1,2,6),(1,6,5),(2,3,7),(2,7,6),(3,0,4),(3,4,7)]
+                solid(part,m,'LapisTabletPendant',v,f,(49,79,141),'Slate',0)
+                for i in range(11):ba('NaturalPyriteSpeck',(.022,.027,.012),(-.57+(i*7%13)*.087,.58+(i*5%11)*.12,-.139),'gold')
+                for side in (-1,1):beam(m,'SilverEdge',(side*.79,.35,-.16),(side*.67,2.13,-.16),.045,'silver')
+            elif definition['id']=='j05':
+                ba('AmberTeardrop',(1.43,1.74,.62),(0,1.15,0),'amber','Glass',alpha=.12)
+                v,f=rings([(0,0),(.15,.48),(.58,.35),(.82,0)],8,oval=(1,.40))
+                solid(part,m,'AmberDropTip',transform(v,(0,1.66,0)),f,PALETTE['amber'],'Glass',.12)
+                for side in (-1,1):beam(m,'OrganicInclusion',(0,1.13,-.19),(side*.22,1.36,-.21),.026,'wood','Slate')
+                ri('GoldDropCollar',(0,2.07,0),.19,.055,'gold')
+            else:
+                p("Backing",(1.9,2.4,.25),(0,1.3,0),"gold" if kind=="cameo" else "silver",rotation=(0,0,0),shape=0)
+                ba("StoneOrPortrait",(1.55,2.05,.35),(0,1.3,-.18))
             if kind=="cameo": ba("CarvedProfile",(.6,1.1,.25),(.05,1.4,-.4),"ivory");ba("ProfileNose",(.27,.2,.2),(.35,1.6,-.45),"ivory")
-            ri("Bail",(0,2.65,0),.2,.07,"gold",plane="xy")
+            ri("Bail",(0,2.28 if definition['id']=='j17'else 2.65,0),.2,.07,"gold",plane="xy")
             if kind=="brooch":
                 for i in range(5): beam(m,"LeafVein",(0,.5,-.4),(.6-i*.22,.9+i*.3,-.4),.04,"gold")
     elif kind=="fibula":
@@ -769,25 +813,65 @@ def make_item(parent, definition):
         beam(m,"ArchedBowB",(.55,1.25,.1),(0,.6,1.4),.18,color)
         p("CatchPlate",(.55,.3,.3),(0,.5,1.4))
     elif kind in ("gem","crystal","cluster","gemstand","artifact"):
-        if kind=="gemstand": cy("Collet",.85,.3,(0,.2,0),"gold")
-        crystals=3 if kind=="cluster" else 1
-        for n in range(crystals):
-            centerx=(n-(crystals-1)/2)*.8;h=1.4+n*.4+variant
-            for i in range(6):
-                t=i*60;rad=.48 if crystals>1 else .75
-                p("HexagonalPrismFacet",(.58,h,.28),(centerx+math.sin(math.radians(t))*rad,h/2+.25,math.cos(math.radians(t))*rad),rotation=(0,t,0))
-                p("CrystalTermination",(.64,.85,.65),(centerx+math.sin(math.radians(t))*rad*.58,h+.55,math.cos(math.radians(t))*rad*.58),rotation=(0,t,0),cls="WedgePart")
-        if kind=="artifact":
-            ri("ArtifactCradle",(0,.35,0),1.15,.16,"gold")
-            for i in range(6):
-                t=i*math.pi/3;beam(m,"CradleProng",(math.sin(t)*1.1,.3,math.cos(t)*1.1),(math.sin(t)*.7,1.1,math.cos(t)*.7),.1,"gold")
+        if definition['id']=='j12':
+            v=[(-.12,.08,.03),(1.10,.68,.12),(.08,.77,-.93),(-1.03,.72,.04),(-.14,.78,.98),(.15,1.83,.04)]
+            f=[(0,1+i,1+(i+1)%4)for i in range(4)]+[(5,1+(i+1)%4,1+i)for i in range(4)]
+            v,f=truncate(v,f,.13)
+            solid(part,m,'DiamondCleavage',v,f,(215,237,248),'Glass',.035,.018)
+        elif definition['id']=='j07':
+            v,f=rings([(.05,0),(.49,.92),(.55,1),(.89,.67),(.91,0)],12,phase=math.pi/12,oval=(1.13,.82))
+            solid(part,m,'OvalBrilliantSapphire',v,f,(70,120,220),'Glass',.045)
+        elif definition['id']=='j08':
+            v,f=rings([(.06,0),(.16,.46),(.38,.60),(2.24,.60),(2.62,.25),(2.66,0)],6,phase=math.pi/6)
+            solid(part,m,'EmeraldHexagonalHabit',v,f,(64,169,113),'Glass',.10)
+            beam(m,'MineralInclusion',(-.15,.51,-.1),(.11,1.84,.07),.025,(42,114,79),'Glass')
+        elif definition['id']=='j09':
+            v,f=rings([(.03,0),(.06,.87),(.18,1),(.43,.90),(.65,.55),(.70,0)],16,oval=(1.16,.82))
+            solid(part,m,'OpalCabochon',v,f,(207,226,217),'SmoothPlastic',0,.014)
+            for i in range(12):
+                a=i*2.399;r=.25+(i%3)*.17;x=math.cos(a)*r;z=math.sin(a)*r*.72
+                y=(.70-r/.55*.05 if r<=.55 else .65-(r-.55)/.35*.22)+.012
+                ba('PlayOfColour',(.15+i%3*.024,.022,.09),(x,y,z),((134,205,214),(183,168,221),(231,191,128),(151,212,174))[i%4],'SmoothPlastic',alpha=.18)
+        elif kind=='gemstand':
+            cy('PiercedGoldCollet',.77,.19,(0,.17,0),'gold');ri('ColletGallery',(0,.37,0),.70,.055,'gold')
+            v,f=rings([(.21,0),(.45,.88),(.53,.91),(.92,.63),(.93,0)],8,phase=math.pi/8,oval=(1,.91))
+            solid(part,m,'CushionCutRuby',v,f,(201,55,90),'Glass',.05)
+            for i in range(4):
+                a=math.pi/4+i*math.pi/2
+                beam(m,'RisingGoldProng',(math.cos(a)*.69,.24,math.sin(a)*.69),(math.cos(a)*.67,.65,math.sin(a)*.67),.055,'gold')
+                ba('ClawTip',(.12,.10,.12),(math.cos(a)*.67,.65,math.sin(a)*.67),'gold')
+        elif kind=='cluster':
+            v,f=rings([(.02,0),(.07,1.05),(.24,1.18),(.44,.79),(.52,0)],7,oval=(1.1,.72))
+            solid(part,m,'NaturalHostRock',v,f,(95,106,104),'Slate',0)
+            for i,(x,z,h,r,tilt)in enumerate([(-.64,-.13,1.32,.30,.18),(-.02,.10,2.36,.42,-.06),(.67,-.02,1.72,.33,-.22),(.28,-.45,1.10,.23,.15)]):
+                v,f=rings([(0,0),(.12,r*.8),(h*.74,r),(h,r*.23),(h+.03,0)],6)
+                solid(part,m,'TourmalinePrism'+str(i),transform(v,(x,.29,z),tilt,i*.65),f,PALETTE[color],'Glass',.10)
+        else:
+            v,f=rings([(.18,0),(.47,.56),(.66,.84),(1.81,.70),(2.47,.23),(2.54,0)],6,phase=.2)
+            solid(part,m,'StarQuartz',v,f,(186,182,228),'Glass',.12)
+            for i in range(3):
+                a=i*math.pi/3;beam(m,'RutileStar',(-math.cos(a)*.40,1.17,math.sin(a)*.40),(math.cos(a)*.40,1.17,-math.sin(a)*.40),.027,'silver','Glass')
+            ri('QuartzCradle',(0,.23,0),.70,.06,'silver')
     elif kind in ("coin","medal","badge","disk","compass","pocketwatch"):
         radius=1+variant
         cy("StruckDisc",radius,.18,(0,.2,0))
         ri("RaisedRim",(0,.31,0),radius-.06,.06)
         for i in range(24):
             t=i*math.pi/12;p("EdgeReeding",(.035,.2,.05),(math.sin(t)*radius,.2,math.cos(t)*radius),rotation=(0,i*15,0))
-        if kind=="disk":cy("CentralOpening",.32,.02,(0,.31,0),"ink");ri("PerforationEdge",(0,.34,0),.32,.045)
+        if kind=="disk":
+            if definition['id']=='a12':
+                # Real pierced bi-disk; no opaque disk hidden under a black dot.
+                for old in list(m.children):
+                    if old.name not in ('Anchor',):m.children.remove(old)
+                for i in range(36):
+                    a=i*2*math.pi/36
+                    p('JadeAnnularSector',(.235,.17,.82),(math.sin(a)*1.00,.20,math.cos(a)*1.00),'green','Marble',rotation=(0,math.degrees(a),0))
+                ri('OuterIncisedCircle',(0,.295,0),1.30,.016,'lightmint')
+                ri('InnerIncisedCircle',(0,.295,0),.69,.016,'lightmint')
+            else:
+                cy('PolishedObsidianFace',1.05,.055,(0,.34,0),'iron','Glass').set('Reflectance','float',.35)
+                for i in range(12):
+                    a=i*math.pi/6;beam(m,'ScallopedBronzeMount',(math.sin(a)*1.08,.29,math.cos(a)*1.08),(math.sin(a)*1.25,.29,math.cos(a)*1.25),.045,'brass')
         elif kind in ("compass","pocketwatch"):
             cy("EnamelDial",.87,.04,(0,.33,0),"ivory")
             for i in range(12):
@@ -805,6 +889,18 @@ def make_item(parent, definition):
             for i in range(18):
                 t=i*math.pi/9
                 ba("BeadedBorder",(.035,.025,.035),(math.sin(t)*(radius-.2),.353,math.cos(t)*(radius-.2)))
+            if definition['id'] in ('i02','i03'):
+                for old in list(m.children):
+                    if old.name.startswith(('Portrait','Profile','RaisedHair')):m.children.remove(old)
+                if definition['id']=='i02':
+                    for side in (-1,1):
+                        for feather in range(5):beam(m,'EagleWingFeather',(side*.11,.386,.16),(side*(.62-feather*.07),.386,-.43+feather*.16),.045,'silver')
+                        ba('DoubleEagleHead',(.18,.035,.18),(side*.17,.40,-.43),'silver')
+                    p('EagleShield',(.29,.05,.42),(0,.39,.10),'silver')
+                else:
+                    beam(m,'DucatCross',(0,.386,-.60),(0,.386,.56),.07,'gold')
+                    beam(m,'DucatCrossArm',(-.44,.386,-.2),(.44,.386,-.2),.07,'gold')
+                    for side in (-1,1):ri('MintRosette',(side*.52,.387,.3),.13,.024,'gold',segments=8)
         else:
             cy("CentralRelief",.4,.05,(0,.35,0),"brass")
             for i in range(5):
@@ -885,10 +981,25 @@ def make_item(parent, definition):
             ring(dial,"Bezel",(0,0,-.08),1.12,.09,"brass",plane="xy")
             beam(dial,"MinuteHand",(0,0,-.14),(.2,.75,-.14),.05,"iron");beam(dial,"HourHand",(0,0,-.16),(-.5,.1,-.16),.07,"iron")
     elif kind in ("top","bell","seal","ingot","cylinderseal","chessking","oillamp","scarab","mask","idol","fossil","shell","boat","telescope","binoculars","microphone","tube","telegraph","metronome","fan","engine","toycar"):
-        if kind in ("top","bell","seal","chessking","cylinderseal","tube","microphone"):
+        if kind=='seal':
+            if definition['id']=='j13':
+                cy('MalachiteDie',.86,.24,(0,.13,0),'green','Marble')
+                cy('FlutedStoneStem',.30,.66,(0,.58,0),'green','Marble')
+                ba('TurnedMalachiteGrip',(.97,1.52,.97),(0,1.52,0),'green','Marble')
+                for i in range(5):ri('BandedMalachiteVein',(0,1.12+i*.19,0),.39+math.sin(i*.9)*.06,.018,'mint')
+                ri('SealShoulder',(0,.28,0),.74,.025,'brass')
+            else:
+                cy('EngravedBrassDie',.64,.22,(0,.12,0),'brass')
+                cy('SteelSealStem',.16,.95,(0,.68,0),'iron')
+                ba('RosewoodPalmGrip',(.86,1.16,.86),(0,1.66,0),'wood','Wood')
+                cy('GripFerrule',.23,.16,(0,1.10,0),'brass')
+                cy('SeparateWaxImpression',.47,.09,(1.18,.06,.48),'red','SmoothPlastic')
+                for i in range(6):
+                    a=i*math.pi/3;ba('WaxFlowEdge',(.20,.07,.20),(1.18+math.sin(a)*.4,.06,.48+math.cos(a)*.4),'red')
+                ri('ImpressedWaxBorder',(1.18,.113,.48),.32,.024,'ruby')
+        elif kind in ("top","bell","chessking","cylinderseal","tube","microphone"):
             if kind=="top":profile=[(0,.08),(.4,.6),(.8,1.1),(1,.8),(1.4,.2),(2,.15)]
             elif kind=="bell":profile=[(0,1.25),(.3,1.1),(1,.7),(1.7,.4),(1.9,.2)]
-            elif kind=="seal":profile=[(0,1),(.25,1),(.4,.4),(1.4,.2),(2,.55),(2.4,.4)]
             elif kind=="chessking":profile=[(0,1),(.2,1.1),(.5,.8),(1.6,.35),(2,.6),(2.5,.5)]
             elif kind=="cylinderseal":profile=[(0,.55),(.2,.6),(2,.6),(2.2,.55)]
             elif kind=="tube":profile=[(0,.7),(.4,.7),(1,.6),(2.4,.55),(2.8,.3)]
@@ -902,7 +1013,11 @@ def make_item(parent, definition):
                 for i in range(10):p("GrilleSlot",(1,.05,.05),(0,2.15+i*.1,-.58),"iron")
             if kind=="tube":
                 for x in (-.5,0,.5):cy("ContactPin",.045,.35,(x,-.12,0),"silver")
-        elif kind=="ingot":p("CastIngot",(2.9,.6,1.5),(0,.4,0),cls="WedgePart");sign(m,"950 Pt",(0,.43,-.78),(1.5,.3,.03),"iron","silver")
+        elif kind=="ingot":
+            v=[(-1.45,.08,-.78),(1.45,.08,-.78),(1.45,.08,.78),(-1.45,.08,.78),(-1.27,.62,-.60),(1.27,.62,-.60),(1.27,.62,.60),(-1.27,.62,.60)]
+            f=[(0,2,1),(0,3,2),(4,5,6),(4,6,7),(0,1,5),(0,5,4),(1,2,6),(1,6,5),(2,3,7),(2,7,6),(3,0,4),(3,4,7)]
+            solid(part,m,'TaperedPlatinumIngot',v,f,PALETTE['silver'],'Metal',0)
+            sign(m,'950 Pt',(0,.635,0),(1.45,.025,.7),'iron','silver',face=1,text_size=23)
         elif kind=="oillamp":
             ba("ClayReservoir",(2.3,.8,2),(0,.5,0));p("WickNozzle",(.7,.45,1.1),(0,.6,-1.15),cls="WedgePart");cy("FillHole",.3,.04,(0,.94,0),"ink");ri("Handle",(0,.7,1.1),.4,.13,plane="yz")
         elif kind in ("scarab","mask","idol"):
@@ -953,8 +1068,6 @@ def make_item(parent, definition):
             beam(m,"ClockworkKey",(.9,.8,0),(1.45,.8,0),.1,"silver");ri("WindingBow",(1.5,.8,0),.23,.06,"silver",plane="yz")
     else:
         raise ValueError(f"Missing authored item geometry: {definition['id']} / {kind}")
-    # A tiny maker detail unique to the inventory model, not a floating billboard.
-    part(m,"MakerInlay",(.18,.025,.12),(.1,.035,.1),"brass","Metal",collide=False)
     return m
 
 
@@ -1162,6 +1275,13 @@ def main():
     levels=[building(buildings,i) for i in (1,2,3)]
     templates=Node("Folder","Templates",storage);bacon(templates)
     rep=Node("ReplicatedStorage","ReplicatedStorage",root)
+    # Artwork travels inside the place, independently of image-upload permissions.
+    art=Node('Folder','IdentityArt',rep)
+    for key,data in json.loads((ROOT/'content/identity_art.json').read_text()).items():
+        packed=json.dumps(data,separators=(',',':'))
+        source=Node('StringValue',key,art).set('Value','string',packed[:64000])
+        for i,start in enumerate(range(64000,len(packed),64000),2):
+            Node('StringValue',f'Chunk{i:02d}',source).set('Value','string',packed[start:start+64000])
     item_models=Node("Folder","ItemModels",rep)
     models=[make_item(item_models,d) for d in definitions]
     decor_models=Node('Folder','DecorModels',rep)
@@ -1209,6 +1329,13 @@ def main():
                       "color":n.props.get("Color3uint8",("",0))[1]&0xffffff,"alpha":n.props.get("Transparency",("",0))[1],
                       "shape":n.props.get("shape",("",1))[1],"material":n.props.get("Material",("",272))[1]})
     (OUT/"scene.json").write_text(json.dumps(scene,separators=(",",":")))
+    item_scene={}
+    for model in models:
+        item_scene[model.name]=[{"name":n.name,"class":n.cls,"position":n.position,"rotation":n.rotation,"size":n.props['size'][1],
+            "color":n.props.get('Color3uint8',('',0))[1]&0xffffff,"alpha":n.props.get('Transparency',('',0))[1],
+            "shape":n.props.get('shape',('',1))[1],"material":n.props.get('Material',('',272))[1]}
+            for n in model.walk()if n.cls in ('Part','WedgePart')and n.props.get('Transparency',('',0))[1]<.95]
+    (OUT/'item-scene.json').write_text(json.dumps(item_scene,separators=(',',':')))
     print(json.dumps({k:v for k,v in stats.items() if k!="items"},ensure_ascii=False,indent=2))
     print(f"Built {OUT/'PROBA.rbxlx'} ({(OUT/'PROBA.rbxlx').stat().st_size/1024/1024:.2f} MiB)")
 

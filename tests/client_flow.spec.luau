@@ -14,6 +14,11 @@ local item={id="h03",uid="owned",name="Фарфоровая кружка",spec="
 profile.case={id="case",customer="Friend avatar",item=item,tests={},patience=1,timing={seconds=310,paused=false},negotiations=0}
 profile.inventory={item};networkState:Fire(profile);networkState:Fire({kind="open",panel="case"});capture("case")
 click("Рассмотреть 3D");services.RunService.RenderStepped:Fire(.016)
+for _,n in ipairs(allNodes)do
+	if n.ClassName=="ViewportFrame"and shown(n)and n.CurrentCamera then
+		expect(n.CurrentCamera.CFrame.Position.Z<0,"The first item view must face the authored front, rather than the blank back of a mask or device")
+	end
+end
 click("Предложить выкуп");click("Оригинал")
 local challenges=env.require(shared.Challenges)
 for _,tool in ipairs(Config.ToolsOrder)do
@@ -67,4 +72,18 @@ for _,jointName in ipairs({"Right Shoulder","RightShoulder"})do
 	rig:SetAttribute("ProbaNativeActive",true);joint.Transform=CF.new();services.RunService.PreSimulation:Fire()
 	expect(joint.Transform.angle==nil,"Procedural motion must never overwrite a playing native avatar animation")
 end
+local neutralParent=node("Frame","DefaultCardContrast",localPlayer.PlayerGui)
+local neutral=env.require(clientScripts.IdentityFX).Background(neutralParent,"card_paper",270,88)
+for _,n in ipairs(neutral:GetDescendants())do
+	if n.ClassName=="UIGradient"and n.Color then
+		for _,value in ipairs(n.Color)do
+			local colors=if value.R then{value}else value
+			for _,point in ipairs(colors)do
+				local c=if point.R then point else point[2]
+				expect(c.R*.2126+c.G*.7152+c.B*.0722<.3,"The default card must keep every background gradient stop dark enough for its white nickname")
+			end
+		end
+	end
+end
+neutralParent:Destroy()
 print("PASS actual client constructors and actions:",assertions,"assertions")
